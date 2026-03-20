@@ -26,6 +26,9 @@ jobs:
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v5
         env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # Safe to hardcode for local SonarQube; only token is secret.
+          SONAR_HOST_URL: "http://localhost:9000"
+        with:
+          projectBaseDir: .
 
