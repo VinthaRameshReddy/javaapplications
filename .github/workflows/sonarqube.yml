@@ -8,6 +8,7 @@ on:
 
 jobs:
   sonarqube:
+    # Keep this broad so any self-hosted runner can pick it up.
     runs-on: self-hosted
 
     steps:
