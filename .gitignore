@@ -1,0 +1,16 @@
+# Dependency directories
+/.mvn/
+/.gradle/
+
+# Build directories
+/build/
+/target/
+
+# IDE specific files
+/.idea/
+/.classpath
+/.project
+/.settings/
+
+# Log files
+*.log
