@@ -66,5 +66,6 @@ jobs:
       - name: Run SonarQube scan
         shell: powershell
         run: |
-          & $env:SCANNER_BAT -Dsonar.host.url="http://localhost:9000" -Dsonar.login="$env:SONAR_TOKEN" -Dsonar.projectBaseDir="." -Dsonar.projectKey="javaapplications" -Dsonar.branch.name="master"
+          # --% prevents PowerShell from interpreting tokens that start with '-'.
+          & $env:SCANNER_BAT --% -Dsonar.host.url=http://localhost:9000 -Dsonar.login=$env:SONAR_TOKEN -Dsonar.projectBaseDir=. -Dsonar.projectKey=javaapplications -Dsonar.branch.name=master
 
