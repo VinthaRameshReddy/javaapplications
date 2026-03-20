@@ -67,5 +67,5 @@ jobs:
         shell: powershell
         run: |
           # --% prevents PowerShell from interpreting tokens that start with '-'.
-          & $env:SCANNER_BAT --% -Dsonar.host.url=http://localhost:9000 -Dsonar.login=$env:SONAR_TOKEN -Dsonar.projectBaseDir=. -Dsonar.projectKey=javaapplications -Dsonar.branch.name=master
+          & $env:SCANNER_BAT --% -Dsonar.host.url=http://localhost:9000 -Dsonar.login=$env:SONAR_TOKEN -Dsonar.projectBaseDir=. -Dsonar.projectKey=javaapplications
 
