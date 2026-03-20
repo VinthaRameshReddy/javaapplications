@@ -23,6 +23,34 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Download Maven
+        shell: powershell
+        run: |
+          $mvnVer = "3.9.6"
+          $base = "https://archive.apache.org/dist/maven/maven-3/$mvnVer/binaries"
+          $zipPath = Join-Path $env:RUNNER_TEMP "apache-maven-$mvnVer-bin.zip"
+          $extractDir = Join-Path $env:RUNNER_TEMP "apache-maven-$mvnVer"
+
+          if (!(Test-Path $zipPath)) {
+            Invoke-WebRequest -Uri "$base/apache-maven-$mvnVer-bin.zip" -OutFile $zipPath
+          }
+          if (Test-Path $extractDir) {
+            Remove-Item -Recurse -Force $extractDir
+          }
+          New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($zipPath, $extractDir)
+
+          $mvnCmd = (Get-ChildItem -Path $extractDir -Recurse -Filter "mvn.cmd" | Select-Object -First 1).FullName
+          if (-not $mvnCmd) { throw "mvn.cmd not found after extraction" }
+          "MVN_CMD=$mvnCmd" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build project (skip tests)
+        shell: powershell
+        run: |
+          cd $env:GITHUB_WORKSPACE
+          & $env:MVN_CMD -f pom.xml -DskipTests package
+
       - name: Load SONAR_TOKEN from local config (self-hosted runner)
         shell: powershell
         run: |
