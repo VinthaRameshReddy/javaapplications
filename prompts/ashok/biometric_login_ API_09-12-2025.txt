@@ -1,0 +1,411 @@
+2. /biometric/login API - Biometric Login/09-12-2025-->create api based on this prompt
+
+Purpose
+Authenticate user using biometric passkey. Validates challenge signature using HMAC-SHA256 and issues JWT access token upon successful verification.
+
+---
+
+2.1 Controller Layer -
+
+ROLE: You are a Java Spring Boot backend developer explaining controller layer implementation.
+
+TASK: Explain in detail what happens in the controller layer for the `/biometric/login` API endpoint.
+
+CONTEXT:
+- Controller class: `AuthController`
+- Endpoint: `POST /api/v1/auth/biometric/login`
+- Request DTO: `BiometricLoginRequest` with `email`, `challenge`, `signature` fields
+- Special requirement: Access token must be extracted from response and added to `X-Access-Token` header
+- Return type: `ResponseEntity<CommonResponse>` (not just `CommonResponse`)
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP:
+
+1. HTTP Request Reception:
+   - Spring receives HTTP POST request at `/api/v1/auth/biometric/login`
+   - Request body contains encrypted JSON with `email`, `challenge`, `signature` fields
+   - Request is dispatched to `biometricLogin` method
+
+2. Request Decryption:
+   - `@DecryptBody(BiometricLoginRequest.class)` annotation decrypts request
+   - Decrypted JSON is converted to `BiometricLoginRequest` object
+   - Object contains three fields: `email`, `challenge`, `signature`
+
+3. Request Validation:
+   - `@Valid` annotation triggers validation
+   - Validates all three fields have `@NotBlank` annotation:
+     - `email` - must not be blank
+     - `challenge` - must not be blank
+     - `signature` - must not be blank
+   - If validation fails, error response is returned
+
+4. Request Logging:
+   - Logs: `logger.info("BiometricLoginRequest: email={}", request.email());`
+   - Logs email for tracing (doesn't log challenge/signature for security)
+
+5. Service Method Call:
+   - Calls: `CommonResponse response = registrationService.biometricLogin(request);`
+   - Service validates challenge, verifies HMAC signature, generates JWT token
+   - Returns `CommonResponse` with access token in `data` field
+
+6. Response Logging:
+   - Logs: `logger.info("BiometricLoginResponse: {}", response);`
+   - Logs entire response object
+
+7. Token Extraction Logic:
+   - Creates `HttpHeaders` object: `HttpHeaders headers = new HttpHeaders();`
+   - `HttpHeaders` is Spring class for HTTP headers
+   - Checks if response data is a Map: `if (response.getData() instanceof Map<?, ?> dataMap)`
+   - `getData()` returns `Object` type (can be Map, String, or other types)
+   - `instanceof` check ensures data is a Map before casting
+   - Casts to typed Map: `@SuppressWarnings("unchecked") Map<String, Object> responseData = (Map<String, Object>) dataMap;`
+   - `@SuppressWarnings` suppresses unchecked cast warning
+   - Extracts access token: `Object accessToken = responseData.get("accessToken");`
+   - Gets value from map with key "accessToken"
+   - Checks if token exists: `if (accessToken != null)`
+   - Adds to header: `headers.set("X-Access-Token", accessToken.toString());`
+   - `set()` method sets HTTP header name and value
+   - Header name: "X-Access-Token"
+   - Header value: access token string
+   - Logs: `logger.info("Added X-Access-Token to response header for biometric login");`
+
+8. Response Entity Creation:
+   - Returns: `return ResponseEntity.ok().headers(headers).body(response);`
+   - `ResponseEntity` is Spring class for HTTP response with headers and body
+   - `ok()` creates ResponseEntity with HTTP 200 status
+   - `headers(headers)` sets custom headers (X-Access-Token)
+   - `body(response)` sets response body (CommonResponse object)
+   - Response is encrypted by `@EncryptResponse` annotation before sending
+
+CLASSES AND METHODS INVOLVED:
+- `AuthController` - Controller class
+- `BiometricLoginRequest` - Request DTO
+- `RegistrationService` - Service interface
+- `CommonResponse` - Response wrapper class
+- `HttpHeaders` - Spring HTTP headers class
+- `ResponseEntity` - Spring HTTP response entity class
+- `Map` - Java collection interface
+- `@PostMapping` - Spring mapping annotation
+- `@EncryptResponse` - Custom encryption annotation
+- `@DecryptBody` - Custom decryption annotation
+- `@Valid` - Validation annotation
+
+METHOD SIGNATURE:
+```java
+@PostMapping("/biometric/login")
+@EncryptResponse
+public ResponseEntity<CommonResponse> biometricLogin(
+        @Valid @DecryptBody(BiometricLoginRequest.class) BiometricLoginRequest request
+)
+```
+
+OUTPUT: Detailed explanation of controller layer execution, token extraction logic, and header setting.
+
+---
+
+2.2 Service Layer - Detailed Explanation Prompt**
+
+ROLE: You are a Spring Boot service-layer developer explaining authentication and security logic.
+
+TASK: Explain in detail what happens in the service layer for the `biometricLogin` method.
+
+CONTEXT:
+- Service class: `AuthServiceImpl`
+- Additional dependencies:
+  - `JwtTokenUtil jwtTokenUtil` - Utility for JWT token generation
+  - `JwtUserDetailsService jwtUserDetailsService` - Service for loading user details
+  - `RequestContext` - Utility class for getting request context (DeviceId)
+- Uses private method `computeHmac(String key, String data)` for HMAC-SHA256 computation
+- Challenge validation from Redis
+- HMAC signature verification
+- JWT token generation
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP:
+
+1. Method Entry:
+   - Method: `public CommonResponse biometricLogin(BiometricLoginRequest request)`
+   - Receives request with `email`, `challenge`, `signature`
+   - Logs: `LOGGER.info("Processing biometric login for email: {}", request.email());`
+
+2. Challenge Retrieval from Redis:
+   - Creates Redis key: `String challengeKey = CHALLENGE_PREFIX + request.email();`
+   - Key format: `"biometric:challenge:user@example.com"`
+   - Retrieves stored challenge: `String storedChallenge = redisTemplate.opsForValue().get(challengeKey);`
+   - `opsForValue()` returns String operations
+   - `get()` retrieves value by key
+   - Returns `null` if key doesn't exist (expired or never generated)
+
+3. Challenge Validation:
+   - Checks: `if (storedChallenge == null || !storedChallenge.equals(request.challenge()))`
+   - Validates challenge exists in Redis (not expired)
+   - Validates challenge from request matches stored challenge
+   - If invalid:
+     - Logs warning: `LOGGER.warn("Biometric login failed - Invalid or expired challenge");`
+     - Returns error: `CommonResponse.error()` with HTTP 401 UNAUTHORIZED
+     - Message: "Invalid or expired challenge"
+     - Method stops execution
+
+4. MEMBER User Lookup:
+   - Searches: `Optional<UserModel> memberUserOpt = userRepository.findByEmailOrMobile(request.email(), request.email());`
+   - If found: `if (memberUserOpt.isPresent())`
+
+5. MEMBER User Validation - Biometric Enabled:
+   - Gets user: `UserModel user = memberUserOpt.get();`
+   - Checks: `if (!Boolean.TRUE.equals(user.getBiometricEnabled()))`
+   - If not enabled:
+     - Deletes challenge: `redisTemplate.delete(challengeKey);` (prevent reuse)
+     - Returns error: HTTP 403 FORBIDDEN
+     - Message: "Biometric authentication is not enabled"
+     - Method stops execution
+
+6. MEMBER User Validation - Status:
+   - Checks: `if (!Constants.ACTIVE.equals(user.getStatus().name()))`
+   - `getStatus()` returns enum value (e.g., `UserStatus.ACTIVE`)
+   - `name()` converts enum to string
+   - Compares with `Constants.ACTIVE` string
+   - If not active:
+     - Deletes challenge
+     - Returns error: HTTP 403 FORBIDDEN with `INACTIVE_USER` code
+     - Method stops execution
+
+7. MEMBER User Validation - Passkey Exists:
+   - Gets passkey: `String passkeyHash = user.getPasskey();`
+   - Checks: `if (passkeyHash == null || passkeyHash.isEmpty())`
+   - If passkey not set:
+     - Deletes challenge
+     - Returns error: HTTP 401 UNAUTHORIZED
+     - Message: "Biometric passkey not configured"
+     - Method stops execution
+
+8. HMAC Signature Verification:
+   - Computes expected signature: `String expectedSignature = computeHmac(passkeyHash, request.challenge());`
+   - Calls private method `computeHmac()`:
+     - Uses `Mac.getInstance("HmacSHA256")` - gets HMAC-SHA256 algorithm
+     - Creates `SecretKeySpec` with passkeyHash as key
+     - Initializes HMAC with secret key
+     - Computes HMAC of challenge bytes
+     - Returns Base64-encoded signature
+   - Compares signatures: `if (!expectedSignature.equals(request.signature()))`
+   - If mismatch:
+     - Logs warning: `LOGGER.warn("Biometric login failed - Invalid signature");`
+     - Deletes challenge (prevent replay attack)
+     - Returns error: HTTP 401 UNAUTHORIZED with `INVALID_CREDENTIALS` code
+     - Message: "Invalid biometric signature"
+     - Method stops execution
+
+9. Challenge Deletion (Success):
+   - Deletes challenge: `redisTemplate.delete(challengeKey);`
+   - Prevents challenge reuse (one-time use)
+   - Challenge is consumed after successful verification
+
+10. JWT Token Generation - MEMBER User:
+    - Gets DeviceId: `String deviceId = RequestContext.getDeviceId();`
+    - `RequestContext` is utility class that stores request context in ThreadLocal
+    - DeviceId comes from HTTP header "DeviceId"
+    - Validates DeviceId: `if (deviceId == null || deviceId.isEmpty())`
+    - If missing:
+      - Logs error: `LOGGER.error("DeviceId is missing from request header");`
+      - Throws exception: `throw new CustomException()` with `INVALID_CREDENTIALS` code
+      - Exception is caught by `GlobalExceptionHandler`
+    - Loads user details: `UserDetails userDetails = jwtUserDetailsService.loadUserByUsername(deviceId);`
+    - `JwtUserDetailsService` loads user details for JWT token generation
+    - Generates token: `String accessToken = jwtTokenUtil.generateToken(userDetails, userIdentifier, memberCode);`
+    - `jwtTokenUtil` generates JWT token with:
+      - User details (for authentication)
+      - User identifier (email)
+      - Member code (for MEMBER users)
+    - Logs: `LOGGER.info("JWT token generated for member user");`
+
+11. MEMBER User Response:
+    - Prepares user data:
+      - `memberCode`: `user.getMemberCode()` or empty string if null
+      - `firstName`: `user.getFirstName()` or empty string if null
+      - `sex`: `user.getSex()` or 2 (default) if null
+      - `birthDate`: `user.getBirthDate().toString()` or empty string if null
+    - Creates response map: `Map.of("message", "Login Successful", "memberCode", ..., "accessToken", accessToken)`
+    - Returns: `CommonResponse.success(responseMap)`
+    - Response includes access token in `data.accessToken` field
+
+12. NON_MEMBER User Lookup:
+    - If MEMBER user not found: `Optional<NonMemberUserModel> nonMemberUserOpt = nonMemberUserRepositry.findByEmailOrMobile(...)`
+    - If found: `if (nonMemberUserOpt.isPresent())`
+
+13. NON_MEMBER User Validation:
+    - Gets user: `NonMemberUserModel user = nonMemberUserOpt.get();`
+    - Checks passkey exists (same as MEMBER)
+    - Verifies HMAC signature (same as MEMBER)
+    - Deletes challenge (same as MEMBER)
+    - No `biometricEnabled` check (NON_MEMBER doesn't have this field)
+    - No `status` check (NON_MEMBER doesn't have status field)
+
+14. JWT Token Generation - NON_MEMBER User:
+    - Gets DeviceId (same as MEMBER)
+    - Loads user details (same as MEMBER)
+    - Generates token: `String accessToken = jwtTokenUtil.generateToken(userDetails);`
+    - No memberCode parameter (NON_MEMBER users don't have member code)
+    - Logs: `LOGGER.info("JWT token generated for non-member user");`
+
+15. NON_MEMBER User Response:
+    - Creates response map: `Map.of("message", "Login Successful", "accessToken", accessToken)`
+    - Only includes message and access token (no member data)
+    - Returns: `CommonResponse.success(responseMap)`
+
+16. User Not Found:
+    - If not found in both tables:
+      - Deletes challenge: `redisTemplate.delete(challengeKey);`
+      - Logs warning: `LOGGER.warn("Biometric login failed - User not found");`
+      - Returns error: HTTP 404 NOT_FOUND with `USER_NOT_FOUND` code
+
+CLASSES AND METHODS INVOLVED:
+- `AuthServiceImpl` - Service implementation
+- `StringRedisTemplate` - Redis operations
+- `UserRepository` / `NonMemberUserRepositry` - Database repositories
+- `UserModel` / `NonMemberUserModel` - Entity classes
+- `JwtTokenUtil` - JWT token utility
+- `JwtUserDetailsService` - User details service
+- `RequestContext` - Request context utility
+- `computeHmac()` - Private HMAC computation method
+- `Mac` - Java cryptography class
+- `SecretKeySpec` - Java cryptography class
+- `CustomException` - Custom exception class
+- `Constants` - Constants class
+- `CommonResponse` - Response wrapper
+- `ErrorResponse` - Error response class
+
+OUTPUT: Detailed explanation of service layer execution, challenge validation, HMAC verification, JWT generation, and error handling.
+
+---
+2.3 Utility Method - HMAC Computation 
+
+ROLE: You are a backend developer explaining cryptographic utility implementation.
+
+TASK: Explain in detail what happens in the `computeHmac` private utility method.
+
+CONTEXT:
+- Method location: `AuthServiceImpl` class
+- Method visibility: `private` (only accessible within class)
+- Purpose: Compute HMAC-SHA256 signature for challenge verification
+- Algorithm: HMAC-SHA256
+- Input: `key` (passkeyHash string), `data` (challenge string)
+- Output: Base64-encoded HMAC signature string
+
+WHAT HAPPENS IN THIS METHOD - STEP BY STEP:
+
+1. Method Entry:
+   - Method signature: `private String computeHmac(String key, String data)`
+   - Receives two String parameters:
+     - `key`: Passkey hash (SHA256 hash stored in database)
+     - `data`: Challenge string (from Redis)
+   - Returns: Base64-encoded HMAC signature string
+
+2. Try Block - HMAC Instance Creation:
+   - `Mac hmac = Mac.getInstance("HmacSHA256");`
+   - `Mac` is Java cryptography class from `javax.crypto` package
+   - `getInstance()` is static factory method
+   - Parameter "HmacSHA256" specifies HMAC algorithm with SHA-256 hash function
+   - Returns `Mac` instance configured for HMAC-SHA256
+   - Throws `NoSuchAlgorithmException` if algorithm not available (shouldn't happen)
+
+3. Secret Key Specification:
+   - `SecretKeySpec secretKeySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");`
+   - `SecretKeySpec` is Java cryptography class for secret keys
+   - `key.getBytes(StandardCharsets.UTF_8)` converts key string to byte array
+   - `StandardCharsets.UTF_8` specifies UTF-8 character encoding
+   - Second parameter "HmacSHA256" specifies algorithm name
+   - Creates secret key object from passkey hash bytes
+
+4. HMAC Initialization:
+   - `hmac.init(secretKeySpec);`
+   - `init()` method initializes HMAC with secret key
+   - Secret key is set for HMAC computation
+   - HMAC is now ready to compute signatures
+
+5. HMAC Computation:
+   - `byte[] hmacBytes = hmac.doFinal(data.getBytes(StandardCharsets.UTF_8));`
+   - `data.getBytes(StandardCharsets.UTF_8)` converts challenge string to byte array
+   - `doFinal()` computes HMAC of data bytes using secret key
+   - Returns byte array containing HMAC signature (32 bytes for SHA-256)
+   - HMAC algorithm:
+     - Combines secret key with data using cryptographic hash function
+     - Produces fixed-length output (256 bits = 32 bytes)
+     - Cryptographically secure - cannot be reversed or forged
+
+6. Base64 Encoding:
+   - `return Base64.getEncoder().encodeToString(hmacBytes);`
+   - `Base64.getEncoder()` gets Base64 encoder instance
+   - `encodeToString()` converts byte array to Base64-encoded string
+   - Base64 encoding converts binary data to ASCII string
+   - Result is 44-character string (32 bytes * 4/3 = 42.67, rounded up)
+   - This string is returned to caller
+
+7. Exception Handling:
+   - `catch (Exception e)` catches any exception:
+     - `NoSuchAlgorithmException` - algorithm not available
+     - `InvalidKeyException` - invalid secret key
+     - `IllegalStateException` - HMAC not initialized
+     - Other runtime exceptions
+   - Logs error: `LOGGER.error("Error computing HMAC signature", e);`
+   - Logs exception stack trace for debugging
+   - Throws: `throw new CustomException(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Failed to compute HMAC signature");`
+   - `CustomException` is custom exception class
+   - HTTP status 500 (Internal Server Error)
+   - Exception is caught by `GlobalExceptionHandler` and converted to error response
+
+CLASSES AND METHODS INVOLVED:
+- `Mac` - Java cryptography class for MAC (Message Authentication Code)
+- `SecretKeySpec` - Java cryptography class for secret keys
+- `StandardCharsets` - Java class for character encodings
+- `Base64` - Java utility class for Base64 encoding
+- `CustomException` - Custom exception class
+- `Logger` - SLF4J logger
+- `HttpStatus` - Spring HTTP status enum
+- `GlobalExceptionHandler` - Exception handler
+
+METHOD SIGNATURE:
+```java
+private String computeHmac(String key, String data)
+```
+
+OUTPUT: Detailed explanation of HMAC-SHA256 computation, cryptographic operations, and exception handling.
+
+---
+
+2.4 DTO Layer - 
+
+ROLE: You are a backend developer explaining data transfer object design.
+
+TASK: Explain in detail what happens with the `BiometricLoginRequest` DTO class.
+
+CONTEXT:
+- DTO class: `BiometricLoginRequest`
+- Package: `com.medgo.auth.domain.request`
+- Type: Java record
+- Fields: `email`, `challenge`, `signature` (all String type)
+- All fields have `@NotBlank` validation
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Record Class Definition:
+   - `public record BiometricLoginRequest(String email, String challenge, String signature) {}`
+   - Record automatically creates three private final fields
+   - Constructor: `BiometricLoginRequest(String email, String challenge, String signature)`
+   - Accessor methods: `email()`, `challenge()`, `signature()`
+   - `equals()`, `hashCode()`, `toString()` methods
+
+2. Field Validation:
+   - `email` field:
+     - `@NotBlank(message = "Email is required")` - must not be blank
+     - `@Size(max = 100, message = "Email must not exceed 100 characters")` - max length 100
+   - `challenge` field:
+     - `@NotBlank(message = "Challenge is required")` - must not be blank
+     - No size limit (challenge is Base64 string, typically 44 characters)
+   - `signature` field:
+     - `@NotBlank(message = "Signature is required")` - must not be blank
+     - No size limit (signature is Base64 string, typically 44 characters)
+
+3. Request Deserialization:
+   - JSON: `{"email": "user@example.com", "challenge": "abc123...", "signature": "xyz789..."}`
+   - Jackson deserializes to: `new BiometricLoginRequest("user@example.com", "abc123...", "xyz789...")`
+   - Validation runs automatically
+   - If any field fails validation, error response is returned
+
+OUTPUT: Detailed explanation of DTO structure and validation.

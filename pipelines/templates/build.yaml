@@ -1,0 +1,86 @@
+parameters:
+  servicePath: ''
+  dockerRegistry: ''
+  imageName: ''
+
+jobs:
+- job: imagebuild
+  displayName: "Build and Push Docker Image"
+  pool:
+    name: vm-mpi-sea-a-med2g01-new
+  steps:
+  - task: Gradle@3
+    displayName: 'Gradlew Build'
+    inputs:
+      gradleWrapperFile: '${{ parameters.servicePath }}/gradlew'
+      workingDirectory: '${{ parameters.servicePath }}'
+      options: '--stacktrace --info'
+
+  - script: ./gradlew check
+    displayName: "Run Gradle Checks"
+    workingDirectory: ${{ parameters.servicePath }}
+
+  - task: PublishPipelineArtifact@1
+    displayName: "Publish gradle Reports to Pipeline Artifacts"
+    inputs:
+      targetPath: '${{ parameters.servicePath }}/build/reports'
+      artifact: 'gradlereport'
+
+  # - task: PublishPipelineArtifact@1
+  #   displayName: 'Coyp K8s files to Pipeline Artifacts'
+  #   inputs:
+  #     targetPath: '${{ parameters.servicePath }}/manifests'
+  #     ArtifactName: 'k8smanifests'
+
+  - task: Docker@2
+    displayName: "Build and Push Docker Image"
+    inputs:
+      containerRegistry: '${{ parameters.dockerRegistry }}'
+      repository: '${{ parameters.imageName }}'
+      Dockerfile: '${{ parameters.servicePath }}/Dockerfile'
+
+- job: TrivyScan
+  displayName: "Trivy Vulnerability Scan for Image"
+  dependsOn: imagebuild
+  pool:
+    name: vm-mpi-sea-a-med2g01-new
+  container: python:3.11 
+  steps:
+  - task: Docker@2
+    displayName: "Docker Login"
+    inputs:
+      containerRegistry: '${{ parameters.dockerRegistry }}'
+      command: login
+
+  - script: |
+      echo "--> Installing Trivy..."
+      mkdir -p $HOME/bin
+      wget -qO- https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $HOME/bin
+      echo "--> Scanning image with Trivy..."
+      $HOME/bin/trivy image ${{ parameters.acrName }}/${{ parameters.imageName }}:$(Build.BuildId) \
+        --severity HIGH,CRITICAL,MEDIUM \
+        --format json -o trivy-report.json
+      echo "--> High, Critical Vulnerabilities below"
+      cat trivy-report.json
+    displayName: "Trivy Scan - Container Image"
+
+  - script: |
+      echo "Running Python script for HTML report..."
+      cd $(Build.SourcesDirectory)
+      python pipelines/scripts/trivyparser.py
+    displayName: "Trivy HTML Report generator"
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: 'scan-report.html'
+      ArtifactName: 'imagescanreport'
+    displayName: "Publish Trivy Report to Pipeline Artifacts"
+
+  # - task: Docker@2
+  #   displayName: "Push Docker Image"
+  #   inputs:
+  #     containerRegistry: '${{ parameters.dockerRegistry }}'
+  #     repository: '${{ parameters.imageName }}'
+  #     command: push
+  #     tags: |
+  #       $(Build.BuildId)

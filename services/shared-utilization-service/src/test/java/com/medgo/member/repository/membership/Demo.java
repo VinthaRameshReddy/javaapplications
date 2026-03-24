@@ -1,0 +1,1 @@
+package com.medgo.member.repository.membership;

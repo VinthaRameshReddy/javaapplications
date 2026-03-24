@@ -1,0 +1,85 @@
+plugins {
+    alias(libs.plugins.springBoot)
+    alias(libs.plugins.springDependencyManagement)
+    id 'java'
+    alias(libs.plugins.docker)
+    id 'checkstyle'
+    id 'jacoco'
+    alias(libs.plugins.gitProperties)
+}
+
+group = 'com.medgo'
+version = '0.1.0'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(libs.versions.java.get())
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+jar {
+    enabled = false
+}
+
+dependencies {
+    // Shared libraries
+    implementation 'com.medgo:common-objects:0.1.0'
+    
+    // Spring Boot Starters (no database dependencies)
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign:4.3.0'
+    implementation libs.springDoc
+    implementation libs.logstash
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    
+    // Azure Key Vault Secrets support for externalized configuration
+    implementation 'com.azure.spring:spring-cloud-azure-starter-keyvault-secrets:6.0.0'
+    implementation 'com.azure:azure-security-keyvault-secrets:4.7.0'
+    implementation 'com.azure:azure-identity:1.11.0'
+    
+    // Test dependencies
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+jacocoTestReport {
+    reports {
+        xml.required.set(true)
+    }
+}
+test.finalizedBy jacocoTestReport
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
+}
+
+docker {
+    dependsOn bootJar
+    name "${project.group}/${jar.archiveBaseName.get()}:${version}"
+    copySpec.from("build/libs").into("libs")
+    dockerfile file('src/main/resources/docker/Dockerfile')
+}
+
+tasks.withType(Checkstyle){
+    configFile file('codequality/checkstyle.xml')
+}
+
+gitProperties {
+    dateFormat = "yyyy-MM-dd'T'HH:mmZ"
+    dateFormatTimeZone = "IST"
+}
+
+springBoot {
+    buildInfo()
+}

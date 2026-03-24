@@ -1,0 +1,29 @@
+Create a Feign client interface named NotificationServiceClient under the package com.medgo.reimburse.feign.
+
+This client will be used to communicate with an external notification service responsible for sending emails.
+
+Requirements:
+
+Annotate the interface with @FeignClient.
+
+Set the Feign client name as notification-service.
+
+Read the base URL from the application property notification.service.url.
+
+Attach a custom Feign configuration class NotificationFeignConfig.
+
+API contract:
+
+Define a method to send email notifications.
+
+Use @PostMapping with endpoint path /notification/send.
+
+Accept an EmailRequest DTO as the request body.
+
+Return ResponseEntity<Map<String, Object>> to capture flexible response payloads from the notification service.
+
+Implementation notes:
+
+The interface should only declare the API contract (no implementation).
+
+Follow standard Spring Cloud OpenFeign conventions.

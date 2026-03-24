@@ -1,0 +1,105 @@
+plugins {
+    id 'java'
+    alias(libs.plugins.docker)
+    id 'jacoco'
+    alias(libs.plugins.gitProperties)
+    alias(libs.plugins.springBoot)
+    alias(libs.plugins.springDependencyManagement)
+}
+
+group = 'com.medgo'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.medgo:common-objects:0.1.0'
+    implementation 'com.medgo:logging-utils:0.1.0'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign:4.3.0'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign:4.3.0'
+    implementation 'io.github.openfeign.form:feign-form:3.8.0'
+    implementation 'io.github.openfeign.form:feign-form-spring:3.8.0'
+
+    // OpenAPI Documentation
+    implementation 'org.springdoc:springdoc-openapi-ui:1.6.5'
+
+    // Logging
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
+
+    // Azure Key Vault
+    implementation 'com.azure.spring:spring-cloud-azure-starter-keyvault-secrets:6.0.0'
+
+    // JWT Support
+    implementation 'com.auth0:java-jwt:4.4.0'
+
+    // WebFlux (for reactive APIs)
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    // Common core service JAR
+    implementation files("../../lib/common-core-service-1.0.0.jar")
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc:12.4.2.jre11'
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus:1.9.3'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+
+    // Azure Key Vault Secrets support for externalized configuration
+    implementation 'com.azure.spring:spring-cloud-azure-starter-keyvault-secrets:6.0.0'
+}
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    reports {
+        xml.required.set(true)
+    }
+}
+
+test.finalizedBy jacocoTestReport
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
+}
+
+docker {
+    dependsOn bootJar
+    name "${project.group}/${jar.archiveBaseName.get()}:${version}"
+    copySpec.from("build/libs").into("libs")
+    dockerfile file('src/main/resources/docker/Dockerfile')
+}
+
+tasks.withType(Checkstyle) {
+    configFile file('codequality/checkstyle.xml')
+    ignoreFailures = true
+}
+
+gitProperties {
+    dateFormat = "yyyy-MM-dd'T'HH:mmZ"
+    dateFormatTimeZone = "IST"
+}
+
+springBoot {
+    buildInfo()
+}

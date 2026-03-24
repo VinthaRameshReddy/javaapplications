@@ -1,0 +1,15 @@
+Cross-service: Basic authentication and device-id validation
+Original file: basic-authentication-prompts.txt
+
+Scope:
+Define prompts that require full-service regeneration to implement consistent authentication patterns (basic auth, device id validation, token header processing) across the monorepo.
+
+Instructions:
+1. Locate auth-related utilities (SecurityValidationUtil, ResponseHeaderUtil) in the repo.
+2. Create per-endpoint prompts that ensure endpoints validate device id, process token headers, and return consistent headers using `ResponseHeaderUtil`.
+3. Add tests to verify header processing and device-id validation logic.
+
+Output:
+- Git-style patches per relevant service implementing the authentication contract and tests.
+
+Regenerate now.

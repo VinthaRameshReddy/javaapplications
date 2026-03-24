@@ -1,0 +1,52 @@
+================================================================================
+LOA SERVICE - API PROMPTS
+================================================================================
+Service: loa-service
+Context path: /loa-service
+Security: JWT (JwtRequestFilter from common-objects). Health/actuator permitted without auth.
+External: Feign MedicardApiClient, MedicardAuthClient (token endpoint, LOA APIs)
+================================================================================
+
+--- API 1: Request LOA (Submit Transaction) ---
+Endpoint: POST /loa-service/transaction
+Request body: @Valid @DecryptBody(LoaRequestDTO.class)
+Response: CommonResponse.success(response) or rethrow from MedicardApiClient.requestLoa(request)
+Controller: LoaController.requestLoa(request)
+Feign: medicardApiClient.requestLoa(request)
+Notes: Encrypted request body; return CommonResponse wrapping external API response.
+
+--- API 2: LOA Transaction History ---
+Endpoint: GET /loa-service/transaction/history
+Query params: page (default 0, min 0), size (default 5, min 5), originMemberCode (required, max 50 chars), hospitalCode (optional, max 50 chars)
+Response: CommonResponse.success(response)
+Controller: LoaController.getLoaHistory(page, size, originMemberCode, hospitalCode)
+Feign: medicardApiClient.getLoaHistory(page, size, originMemberCode, hospitalCode)
+
+--- API 3: LOA History Details ---
+Endpoint: GET /loa-service/transaction/historyDetails/{id}
+Path: id (Long)
+Query params: systemOrigin (required, must be MCAP or MACE), originMemberCode (required, max 50 chars)
+Response: CommonResponse.success(response) or CommonResponse.error(400) if invalid systemOrigin
+Controller: LoaController.getLoaHistoryDetails(id, systemOrigin, originMemberCode)
+Validation: SystemOriginEnum.fromCode(systemOrigin); if null return 400 INVALID_SYSTEM_ORIGIN
+Feign: medicardApiClient.getLoaHistoryDetails(id, systemOrigin, originMemberCode)
+
+--- API 4: Download LOA ---
+Endpoint: GET /loa-service/download/loa
+Query params: systemOrigin (required, MCAP or MACE), requestId (Long), originMemberCode (required, max 50 chars)
+Response: CommonResponse.success(LoaDownloadResponseDTO) — JSON with base64 PDF in data
+Controller: LoaController.downloadLoa(systemOrigin, requestId, originMemberCode)
+Validation: SystemOriginEnum.fromCode(systemOrigin); if null return 400 INVALID_SYSTEM_ORIGIN
+Feign: medicardApiClient.downloadLoa(systemOrigin, requestId, originMemberCode)
+On null response or exception: return CommonResponse.error 500 INTERNAL_ERROR
+
+--- Security (LOA Service) ---
+- SecurityConfig: JwtRequestFilter injected; addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter).
+- Permit: /health, /actuator/health, /actuator/**.
+- All other paths require authenticated JWT (Authorization Bearer or X-Access-Token).
+- APIM key for LOA: loa.apim-key (optional header for APIM). Medicard auth: medicard.auth.* (username, password, grant-type, basic username/password for token endpoint).
+
+--- Prompt for implementing LOA controller ---
+"Implement a REST controller for LOA service with: (1) POST /transaction accepting @Valid @DecryptBody(LoaRequestDTO.class), calling medicardApiClient.requestLoa and returning CommonResponse.success(response). (2) GET /transaction/history with page, size, originMemberCode, hospitalCode (optional), delegating to medicardApiClient.getLoaHistory. (3) GET /transaction/historyDetails/{id} with query params systemOrigin and originMemberCode; validate systemOrigin is MCAP or MACE via SystemOriginEnum.fromCode, else return 400 INVALID_SYSTEM_ORIGIN; then call medicardApiClient.getLoaHistoryDetails. (4) GET /download/loa with systemOrigin, requestId, originMemberCode; same systemOrigin validation; call medicardApiClient.downloadLoa and return CommonResponse.success(response); on null or exception return 500 INTERNAL_ERROR. Use @Slf4j and consistent error handling with ErrorResponse and CommonResponse.error."
+
+================================================================================

@@ -1,0 +1,437 @@
+6. /transaction API - Request LOA (Letter of Authorization)/09-12-2025-->create api based on this prompt
+
+Purpose
+Create a new LOA (Letter of Authorization) request for various service types including F2F Consultation, Telemedicine, Inpatient, Tests, Maternity, and Schedule with Preferred Doctor. This endpoint acts as a proxy to the Medicard API, automatically handling authentication token management and forwarding the request to the external Medicard service.
+
+---
+
+6.1 Controller Layer - Detailed Explanation Prompt
+
+ROLE: You are a Java Spring Boot backend developer explaining controller layer implementation.
+
+TASK: Explain in detail what happens in the controller layer for the `/transaction` API endpoint.
+
+CONTEXT:
+- Controller class: `LoaController`
+- Endpoint: `POST /transaction` (full path: `/loa-service/transaction`)
+- Request DTO: `LoaRequestDTO` with `serviceId`, `serviceSubTypeId`, `originMemberCode`, `request`, and `telemedicine` fields
+- Acts as proxy to Medicard API via Feign client
+- Automatic authentication via FeignClientConfig
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Request Reception:
+   - Spring receives HTTP POST request at `/transaction`
+   - Request body contains encrypted JSON
+   - Context path: `/loa-service` (from `server.servlet.context-path`)
+
+2. Request Decryption:
+   - `@DecryptBody(LoaRequestDTO.class)` decrypts request
+   - Converts encrypted JSON to `LoaRequestDTO` object
+   - Decryption uses AES-GCM + RSA encryption
+
+3. Validation:
+   - `@Valid` triggers Bean Validation on `LoaRequestDTO`:
+     - `serviceId` - `@NotNull`, `@Min(value = 1)` (required, must be > 0)
+     - `serviceSubTypeId` - `@Min(value = 1)` (optional, must be > 0 if provided)
+     - `request` - `@NotNull`, `@Valid` (required, nested validation)
+     - `telemedicine` - `@Valid` (optional, nested validation)
+   - Nested validation on `LoaTransactionRequestDTO`:
+     - `requestedBy` - `@NotBlank`, `@Size(max=100)`, `@Pattern` (alphanumeric, -, , only)
+     - `member` - `@NotNull`, `@Valid` (required)
+     - Various other fields with size and pattern validations
+
+4. Logging:
+   - No explicit logging in controller (handled by Feign client)
+   - Errors logged: `log.error("Error calling Medicard API: {}", e.getMessage(), e);`
+
+5. Feign Client Call:
+   - Calls: `Object response = medicardApiClient.requestLoa(request);`
+   - `MedicardApiClient` is a Feign client interface
+   - Automatically adds authentication token via `FeignClientConfig`
+   - Forwards request to: `POST /mcap/mace-medgo/service/transaction/v2` at Medicard API
+
+6. Response Handling:
+   - If successful: `return CommonResponse.success(response);`
+   - Wraps Medicard API response in `CommonResponse` wrapper
+   - Response is automatically encrypted if `@EncryptResponse` annotation is present
+
+7. Exception Handling:
+   - Catches exceptions from Feign client
+   - Logs error: `log.error("Error calling Medicard API: {}", e.getMessage(), e);`
+   - Re-throws exception (propagates to GlobalExceptionHandler)
+
+OUTPUT: Detailed explanation of controller layer execution, request decryption, validation, and Feign client integration.
+
+---
+
+6.2 Feign Client Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot developer explaining Feign client integration and automatic authentication.
+
+TASK: Explain in detail what happens in the Feign client layer when calling the Medicard API.
+
+CONTEXT:
+- Feign Client: `MedicardApiClient`
+- Endpoint: `POST /mcap/mace-medgo/service/transaction/v2`
+- Base URL: Configured via `medicard.api.url` property
+- Configuration: `FeignClientConfig` (automatic token injection)
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Feign Client Interface:
+   - `@FeignClient(name = "medicard-api", url = "${medicard.api.url}", configuration = FeignClientConfig.class)`
+   - Method: `Object requestLoa(@RequestBody LoaRequestDTO request);`
+   - Mapping: `@PostMapping("/mcap/mace-medgo/service/transaction/v2")`
+
+2. Request Interceptor Execution:
+   - `FeignClientConfig.combinedHeadersInterceptor()` intercepts request
+   - Executes before HTTP request is sent
+
+3. APIM Key Header Addition:
+   - Checks: `if (loaApimKey != null && !loaApimKey.isEmpty())`
+   - Adds header: `requestTemplate.header("Ocp-Apim-Subscription-Key", loaApimKey);`
+   - APIM key from: `@Value("${loa.apim-key}")` property
+
+4. Content-Type Header:
+   - Removes existing Content-Type header if present
+   - For POST requests with body: Sets `Content-Type: application/json`
+
+5. Authentication Token Retrieval:
+   - Calls: `String accessToken = tokenService.getAccessToken();`
+   - `TokenService.getAccessToken()`:
+     a. Checks cached token validity (with 5-minute buffer)
+     b. If valid: Returns cached token
+     c. If expired/invalid: Fetches new token from Medicard Auth API
+     d. Caches new token with expiry time
+     e. Returns access token
+
+6. Authorization Header Addition:
+   - Extracts token value (removes "Bearer " prefix if present)
+   - Adds header: `requestTemplate.header("Authorization", "Bearer " + tokenValue);`
+   - Token format: `Bearer <access_token>`
+
+7. HTTP Request Execution:
+   - Feign client sends HTTP POST request to Medicard API
+   - URL: `{medicard.api.url}/mcap/mace-medgo/service/transaction/v2`
+   - Headers:
+     - `Authorization: Bearer <token>`
+     - `Ocp-Apim-Subscription-Key: <apim-key>`
+     - `Content-Type: application/json`
+   - Body: JSON serialized `LoaRequestDTO`
+
+8. Response Handling:
+   - Receives response from Medicard API
+   - Deserializes JSON response to `Object`
+   - Returns response to controller
+
+9. Error Handling:
+   - `FeignClientConfig.errorDecoder()` handles errors
+   - 401 Unauthorized: Clears cached token, logs error
+   - 403 Forbidden: Clears cached token, logs error
+   - 409 Conflict: Logs warning with response body
+   - Other errors: Uses default error decoder
+
+CLASSES AND METHODS INVOLVED:
+- `MedicardApiClient` - Feign client interface
+- `FeignClientConfig` - Feign configuration with interceptors
+- `TokenService` - Token management service
+- `MedicardAuthClient` - Auth API Feign client (used by TokenService)
+- `RequestInterceptor` - Feign request interceptor
+- `ErrorDecoder` - Feign error decoder
+
+OUTPUT: Detailed explanation of Feign client execution, automatic token injection, header management, and error handling.
+
+---
+
+6.3 Token Service Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot service-layer developer explaining token management and caching.
+
+TASK: Explain in detail what happens in the `TokenService.getAccessToken()` method.
+
+CONTEXT:
+- Service class: `TokenService`
+- Method: `public String getAccessToken()`
+- Caches access tokens to avoid repeated API calls
+- Fetches tokens from Medicard Auth API when needed
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Method Entry:
+   - Method: `public String getAccessToken()`
+   - Uses default credentials: `getAccessToken(defaultUsername, defaultPassword)`
+   - Credentials from: `@Value("${medicard.auth.username}")` and `@Value("${medicard.auth.password}")`
+
+2. Token Cache Check:
+   - Checks: `if (cachedAccessToken != null && tokenExpiryTime != null)`
+   - Gets current time: `LocalDateTime now = LocalDateTime.now();`
+   - Calculates buffer time: `tokenExpiryTime.minus(5, ChronoUnit.MINUTES)`
+   - Purpose: 5-minute buffer prevents using tokens that expire soon
+
+3. Cache Hit (Token Valid):
+   - If `now.isBefore(bufferTime)`: Token is still valid
+   - Returns: `return cachedAccessToken;`
+   - No API call needed (performance optimization)
+
+4. Cache Miss (Token Expired/Invalid):
+   - If token is null or expired: Proceeds to fetch new token
+
+5. Token Request Preparation:
+   - Creates form data: `MultiValueMap<String, String> formData`
+   - Adds fields:
+     - `username`: From `medicard.auth.username` property
+     - `password`: From `medicard.auth.password` property
+     - `grant_type`: From `medicard.auth.grant-type` property (typically "medgo_password")
+
+6. Auth API Call:
+   - Calls: `AuthResponseDTO response = medicardAuthClient.getAccessToken(formData);`
+   - `MedicardAuthClient` is Feign client for auth endpoint
+   - Endpoint: `/mcap/mace-medgo-auth/oauth2/token`
+   - Method: POST with form-urlencoded body
+   - Headers: Basic Authentication (from `medicard.auth.basic.username` and `medicard.auth.basic.password`)
+
+7. Response Processing:
+   - Validates: `if (response != null && response.getAccessToken() != null)`
+   - Extracts token: `cachedAccessToken = response.getAccessToken();`
+   - Extracts expiry: `int expiresIn = response.getExpiresIn() != null ? response.getExpiresIn() : 300;`
+   - Default expiry: 300 seconds (5 minutes) if not provided
+   - Calculates expiry time: `tokenExpiryTime = LocalDateTime.now().plus(expiresIn, ChronoUnit.SECONDS);`
+
+8. Token Caching:
+   - Stores token: `cachedAccessToken = response.getAccessToken();`
+   - Stores expiry: `tokenExpiryTime = LocalDateTime.now().plus(expiresIn, ChronoUnit.SECONDS);`
+   - Token available for subsequent requests until expiry
+
+9. Error Handling:
+   - If response is null or missing token:
+     - Logs: `log.error("Failed to obtain access token - response is null or missing access_token");`
+     - Throws: `RuntimeException("Failed to obtain access token")`
+   - If exception occurs:
+     - Logs: `log.error("Error fetching access token: {}", e.getMessage(), e);`
+     - Throws: `RuntimeException("Failed to obtain access token: " + e.getMessage(), e)`
+
+10. Token Cache Clear:
+    - Method: `public void clearToken()`
+    - Called on 401/403 errors from FeignClientConfig
+    - Clears: `cachedAccessToken = null; tokenExpiryTime = null;`
+    - Forces fresh token fetch on next request
+
+CLASSES AND METHODS INVOLVED:
+- `TokenService` - Token management service
+- `MedicardAuthClient` - Auth API Feign client
+- `AuthResponseDTO` - Auth response DTO
+- `LocalDateTime` - Java time class
+- `ChronoUnit` - Time unit for calculations
+
+OUTPUT: Detailed explanation of token caching mechanism, token fetch process, expiry management, and error handling.
+
+---
+
+6.4 DTO Layer - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining data transfer object design.
+
+TASK: Explain in detail what happens with the `LoaRequestDTO` and nested DTO classes.
+
+CONTEXT:
+- Main DTO class: `LoaRequestDTO`
+- Package: `com.medgo.loaservice.domain.dto.request`
+- Type: Lombok `@Data` class (generates getters, setters, equals, hashCode, toString)
+- Contains nested DTOs: `LoaTransactionRequestDTO`, `TelemedicineRequestDTO`
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Main DTO Class Definition:
+   - `@Data` annotation generates:
+     - Getters and setters for all fields
+     - `equals()` and `hashCode()` methods
+     - `toString()` method
+   - `@Builder` annotation enables builder pattern
+   - `@NoArgsConstructor` and `@AllArgsConstructor` for constructors
+
+2. Field Validation - serviceId:
+   - `@JsonProperty("serviceId")` - JSON field name
+   - `@NotNull(message = "serviceId is required")` - Required field
+   - `@Min(value = 1, message = "serviceId must be greater than 0")` - Must be positive
+   - Type: `Long`
+   - Purpose: Identifies service type (1=F2F, 3=Tests, 5=Telemedicine, 18=Inpatient)
+
+3. Field Validation - serviceSubTypeId:
+   - `@JsonProperty("serviceSubTypeId")` - JSON field name
+   - `@Min(value = 1, message = "serviceSubTypeId must be greater than 0")` - Optional, must be positive if provided
+   - Type: `Long`
+   - Purpose: Identifies service subtype (optional)
+
+4. Field Validation - originMemberCode:
+   - `@JsonProperty("originMemberCode")` - JSON field name
+   - No validation annotations (optional field)
+   - Type: `String`
+   - Purpose: Member code for the request
+
+5. Field Validation - request:
+   - `@Valid` - Triggers nested validation
+   - `@NotNull(message = "request is required")` - Required field
+   - Type: `LoaTransactionRequestDTO`
+   - Purpose: Main transaction request details
+
+6. Field Validation - telemedicine:
+   - `@Valid` - Triggers nested validation
+   - No `@NotNull` (optional field)
+   - Type: `TelemedicineRequestDTO`
+   - Purpose: Telemedicine-specific details (if applicable)
+
+7. Nested DTO - LoaTransactionRequestDTO:
+   - Contains fields:
+     - `serviceTypeId` - `@Min(value = 1)` (optional)
+     - `requestedBy` - `@NotBlank`, `@Size(max=100)`, `@Pattern` (required)
+     - `fromHospitalCode` - `@Size(max=50)`, `@Pattern` (optional)
+     - `member` - `@NotNull`, `@Valid` (required, nested MemberDTO)
+     - `consultation` - `@Valid` (optional, ConsultationDTO)
+     - `medGoConsultation` - `@Valid` (optional, MedGoConsultationDTO)
+     - `testV2` - `@Valid` (optional, TestV2DTO)
+     - `inPatient` - `@Valid` (optional, InPatientDTO)
+     - `inquiry` - `@Valid` (optional, InquiryDTO)
+     - `notes` - `@Valid` (optional, List<NoteDTO>)
+     - `attachments` - (optional, List<AttachmentDTO>)
+     - `userBankDetail` - (optional, UserBankDetailDTO)
+     - Various other optional fields
+
+8. Request Deserialization:
+   - JSON: `{"serviceId": 1, "serviceSubTypeId": null, "originMemberCode": "2621761", "request": {...}, "telemedicine": null}`
+   - Jackson deserializes to: `new LoaRequestDTO(1L, null, "2621761", requestDTO, null)`
+   - Validation runs automatically via `@Valid` annotation
+   - Nested validation runs on `request` and `telemedicine` objects
+
+9. Validation Flow:
+   - Controller receives request → `@Valid` triggers validation
+   - Validates `LoaRequestDTO` fields
+   - Validates nested `LoaTransactionRequestDTO` fields
+   - Validates nested `MemberDTO`, `ConsultationDTO`, etc.
+   - If any validation fails: Returns HTTP 400 Bad Request with validation errors
+
+CLASSES AND METHODS INVOLVED:
+- `LoaRequestDTO` - Main request DTO
+- `LoaTransactionRequestDTO` - Transaction request DTO
+- `TelemedicineRequestDTO` - Telemedicine request DTO
+- `MemberDTO` - Member information DTO
+- `ConsultationDTO` - Consultation details DTO
+- `MedGoConsultationDTO` - MedGo consultation DTO
+- `TestV2DTO` - Test request DTO
+- `InPatientDTO` - Inpatient request DTO
+- `InquiryDTO` - Inquiry request DTO
+- `NoteDTO` - Note DTO
+- `AttachmentDTO` - Attachment DTO
+- `UserBankDetailDTO` - Bank detail DTO
+- Jackson `ObjectMapper` - JSON deserialization
+
+OUTPUT: Detailed explanation of DTO structure, validation rules, nested DTOs, and deserialization process.
+
+---
+
+6.5 Error Handling - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot developer explaining error handling and exception propagation.
+
+TASK: Explain in detail how errors are handled throughout the LOA request flow.
+
+CONTEXT:
+- Error handling occurs at multiple layers
+- Feign client errors are decoded and handled
+- Controller exceptions propagate to GlobalExceptionHandler
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Validation Errors:
+   - Triggered by: `@Valid` annotation on controller method
+   - When: Request DTO validation fails
+   - Response: HTTP 400 Bad Request
+   - Body: Validation error details (field name, error message)
+   - Handled by: Spring's `MethodArgumentNotValidException`
+
+2. Decryption Errors:
+   - Triggered by: `@DecryptBody` annotation
+   - When: Request body cannot be decrypted
+   - Response: HTTP 400 Bad Request
+   - Body: Decryption error message
+   - Handled by: Custom decryption interceptor
+
+3. Feign Client Errors - 401 Unauthorized:
+   - Triggered by: Invalid or expired token
+   - Handler: `FeignClientConfig.errorDecoder()`
+   - Actions:
+     - Logs: `log.error("401 Unauthorized - URL: {}, Method: {}", ...)`
+     - Clears token cache: `tokenService.clearToken();`
+     - Reads response body for error details
+   - Response: HTTP 401 Unauthorized
+   - Next request: Will fetch new token automatically
+
+4. Feign Client Errors - 403 Forbidden:
+   - Triggered by: Insufficient permissions or invalid APIM key
+   - Handler: `FeignClientConfig.errorDecoder()`
+   - Actions:
+     - Logs: `log.error("403 Forbidden - URL: {}, Method: {}", ...)`
+     - Clears token cache: `tokenService.clearToken();`
+     - Reads response body for error details
+   - Response: HTTP 403 Forbidden
+
+5. Feign Client Errors - 409 Conflict:
+   - Triggered by: Business logic conflict (e.g., duplicate request)
+   - Handler: `FeignClientConfig.errorDecoder()`
+   - Actions:
+     - Logs: `log.warn("409 Conflict - {}", body);`
+     - Reads response body for conflict details
+   - Response: HTTP 409 Conflict
+   - Body: Conflict error message from Medicard API
+
+6. Feign Client Errors - Other 4xx/5xx:
+   - Handler: `FeignClientConfig.errorDecoder()`
+   - Uses default error decoder: `defaultDecoder.decode(methodKey, response)`
+   - Response: Original HTTP status code from Medicard API
+   - Body: Original error response from Medicard API
+
+7. Token Service Errors:
+   - Triggered by: Token fetch failure
+   - When: Medicard Auth API is unavailable or credentials invalid
+   - Handler: `TokenService.getAccessToken()`
+   - Actions:
+     - Logs: `log.error("Error fetching access token: {}", e.getMessage(), e);`
+     - Throws: `RuntimeException("Failed to obtain access token: " + e.getMessage(), e)`
+   - Response: HTTP 500 Internal Server Error
+   - Propagates to: Controller exception handler
+
+8. Controller Exception Handling:
+   - Catches: `Exception e` from Feign client
+   - Actions:
+     - Logs: `log.error("Error calling Medicard API: {}", e.getMessage(), e);`
+     - Re-throws: `throw e;`
+   - Propagates to: `GlobalExceptionHandler`
+
+9. Global Exception Handler:
+   - Class: `GlobalExceptionHandler`
+   - Handles: All unhandled exceptions
+   - Response: HTTP 500 Internal Server Error (or appropriate status)
+   - Body: `CommonResponse.error(ErrorResponse, statusCode)`
+   - Format: Standardized error response format
+
+10. Network/Timeout Errors:
+    - Triggered by: Network issues or timeout
+    - Handler: Feign retryer (if configured)
+    - Retryer: `Retryer.Default(1000, 5000, 6)` - 6 retries with 1s initial interval, 5s max interval
+    - If all retries fail: FeignException propagated to controller
+    - Response: HTTP 500 Internal Server Error
+
+CLASSES AND METHODS INVOLVED:
+- `FeignClientConfig.errorDecoder()` - Error decoder
+- `TokenService.clearToken()` - Token cache clear
+- `LoaController.requestLoa()` - Controller exception handling
+- `GlobalExceptionHandler` - Global exception handler
+- `ErrorDecoder.Default` - Default Feign error decoder
+- `Retryer` - Feign retry mechanism
+
+OUTPUT: Detailed explanation of error handling at each layer, error propagation, and response format.
+
+---
+
+**OUTPUT:** Complete explanation of LOA request transaction API including controller, Feign client, token service, DTO validation, and error handling layers.
+

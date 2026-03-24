@@ -1,0 +1,108 @@
+plugins {
+    alias(libs.plugins.springBoot)
+    alias(libs.plugins.springDependencyManagement)
+    id 'java'
+    alias(libs.plugins.docker)
+    // id 'checkstyle'
+    id 'jacoco'
+    alias(libs.plugins.gitProperties)
+}
+
+group = 'com.medgo'
+version = '0.1.0'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(libs.versions.java.get())
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+jar {
+    enabled = false
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // Existing dependencies
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // Add this dependency for testing
+    testImplementation 'org.springframework.security:spring-security-test'
+
+
+
+
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+
+    implementation 'com.microsoft.sqlserver:mssql-jdbc'
+
+
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+    implementation 'com.squareup.retrofit2:adapter-rxjava:2.9.0'
+
+    implementation libs.springDoc
+    implementation libs.logstash
+    implementation libs.msSqlServer
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    runtimeOnly 'org.postgresql:postgresql'
+//    implementation 'org.flywaydb:flyway-core'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.h2database:h2'
+
+
+//    SHARED
+    implementation "com.medgo:common-objects"
+    implementation "com.medgo:logging-utils"
+
+    // Azure Key Vault Secrets support for externalized configuration
+    implementation 'com.azure.spring:spring-cloud-azure-starter-keyvault-secrets:6.0.0'
+    implementation 'com.azure:azure-security-keyvault-secrets:4.7.0'
+    implementation 'com.azure:azure-identity:1.11.0'
+
+
+
+
+}
+
+jacocoTestReport {
+    reports {
+        xml.required.set(true)
+    }
+}
+test.finalizedBy jacocoTestReport
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
+}
+
+docker {
+    dependsOn bootJar
+    name "${project.group}/${jar.archiveBaseName.get()}:${version}"
+    copySpec.from("build/libs").into("libs")
+    dockerfile file('src/main/resources/docker/Dockerfile')
+}
+
+tasks.withType(Checkstyle){
+    configFile file('codequality/checkstyle.xml')
+}
+
+gitProperties {
+    dateFormat = "yyyy-MM-dd'T'HH:mmZ"
+    dateFormatTimeZone = "IST"
+}
+
+springBoot {
+    buildInfo()
+}

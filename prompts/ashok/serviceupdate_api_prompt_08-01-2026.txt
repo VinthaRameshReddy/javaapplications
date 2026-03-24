@@ -1,0 +1,116 @@
+-/service/update api create based on this prompt
+
+AI Prompt Template – Service Management: Service Update (POST-only)
+
+TASK:
+Generate layered prompts for the `POST /api/v1/service/update` API that updates service metadata/configuration.
+
+CONTEXT:
+- Controller: `ServiceController`
+- Endpoint: `POST /api/v1/service/update`
+- Request DTO: `ServiceUpdateRequest` with fields: `serviceId`, `name`, `description`, `config: Map<String,Object>`, `enabled`, `updatedBy`
+- Response wrapper: `CommonResponse`
+- Flow: Controller → Service → Repository
+- Requirements: admin-only operation; audit trail required
+- Local testing: run unit tests and local integration tests with H2 or mocks
+
+STANDARD REQUIREMENTS:
+- Use POST-only endpoint design.
+- Decrypt request with `@DecryptBody(ServiceUpdateRequest.class)` if required.
+- Validate inputs using `@Valid`, ensure `serviceId` present and `name` length constraints.
+- Enforce admin authorization (`@PreAuthorize("hasRole('ADMIN')")`).
+- Log `traceId` and masked `updatedBy` only: `traceId={} | method=updateService | serviceId={}`.
+- Do not perform DB persistence in controller; delegate to `serviceService.updateService(request)`.
+- Service must perform validation, transactional update, audit record creation, config validation, and emit change events.
+- Repository: use JPA for entity update; consider optimistic locking (version field) to avoid overwrite.
+- Tests: include unit tests for service validation and transactional behavior; controller tests using MockMvc.
+- Documentation: OpenAPI snippet, sample request/response, and audit notes.
+
+OUTPUT FORMAT:
+- Produce layered prompts for Controller, Service, Repository, DTO, Utilities, Tests, and Docs.
+
+1) Controller Layer
+ROLE: Senior Spring Boot developer.
+TASK: Generate `ServiceController.updateService` POST method.
+REQUIREMENTS:
+ - `@DecryptBody(ServiceUpdateRequest.class)` + `@Valid`
+ - `@PreAuthorize("hasRole('ADMIN')")`
+ - Logging: `log.info("traceId={} | method=updateService | serviceId={}", traceId, request.getServiceId());`
+ - Delegate: `CommonResponse response = serviceService.updateService(request);`
+ - Return: `CommonResponse` with `@EncryptResponse` if configured.
+OUTPUT: Controller method signature and snippet.
+
+2) Service Layer
+ROLE: Service developer.
+TASK: Implement `ServiceService.updateService(ServiceUpdateRequest)`.
+REQUIREMENTS:
+ - @Service class, method annotated `@Transactional`.
+ - Validate entity existence and config schema; use optimistic locking (`@Version`) to prevent concurrent updates.
+ - Persist changes, create `ServiceAuditEntity` record capturing `updatedBy`, `changes`, `timestamp`.
+ - Publish change event via `EventPublisher` or `AuditProducer`.
+ - Return `CommonResponse.success({ "serviceId": id, "message": "Updated" })`.
+ - Map and handle validation errors to `CommonResponse.error()`.
+OUTPUT: Service skeleton, transaction boundaries, and audit workflow.
+
+3) Repository Layer
+ROLE: Persistence engineer.
+TASK: Provide `ServiceRepository` and `ServiceAuditRepository`.
+REQUIREMENTS:
+ - `ServiceRepository extends JpaRepository<ServiceEntity, Long>`.
+ - `ServiceAuditRepository extends JpaRepository<ServiceAuditEntity, Long>`.
+ - Example use of `@Lock(OPTIMISTIC)` or `@Version` for entity.
+OUTPUT: Repository interface snippets and entity versioning notes.
+
+4) DTO Layer
+ROLE: DTO author.
+TASK: Define `ServiceUpdateRequest` and `ServiceUpdateResponse`.
+REQUIREMENTS:
+ - `ServiceUpdateRequest` record:
+   `public record ServiceUpdateRequest(Long serviceId, String name, String description, Map<String,Object> config, Boolean enabled, String updatedBy) {}`
+ - Validation: `@NotNull` for `serviceId`, `@Size(max=250)` for `name`, etc.
+ - `ServiceUpdateResponse`: `{ serviceId, message, updatedAt }`
+OUTPUT: DTO examples with validation annotations.
+
+5) Utility & Config Layer
+ROLE: Utility author.
+TASK: Provide `ConfigValidator`, `AuditUtil`, `MaskingUtil`.
+REQUIREMENTS:
+ - `ConfigValidator.validate(Map<String,Object> config)` ensures required keys and value types.
+ - `AuditUtil.createChangeSet(oldEntity, newEntity)` returns a map of changed fields.
+OUTPUT: Utility signatures and brief descriptions.
+
+6) Test Layer
+ROLE: QA automation.
+TASK: Provide unit tests for service update logic and controller tests.
+REQUIREMENTS:
+ - Service tests: mock repository, test optimistic lock exception, validation failures, successful update.
+ - Controller tests: `@WebMvcTest` with mocked `ServiceService`, verify 200 and JSON structure.
+ - Integration test: use H2 to run update scenario and assert audit record created.
+OUTPUT: Test skeletons and sample MockMvc request.
+
+7) Documentation Layer
+ROLE: Tech writer.
+TASK: Provide OpenAPI snippet, example request/response, and audit trail notes.
+OUTPUT: Markdown with sample payload and audit example.
+
+EXAMPLE REQUEST:
+```json
+{
+  "serviceId": 42,
+  "name": "Notification Service",
+  "description": "Handles user notifications",
+  "config": { "retry": 3, "timeoutMs": 5000 },
+  "enabled": true,
+  "updatedBy": "admin_user"
+}
+```
+
+EXAMPLE RESPONSE:
+```json
+{
+  "status": "SUCCESS",
+  "data": { "serviceId": 42, "message": "Updated", "updatedAt": "2026-02-09T12:34:56Z" }
+}
+```
+
+

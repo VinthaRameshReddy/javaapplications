@@ -1,0 +1,71 @@
+API:-/faceScan-service/api/v1/faceScan/fetchResult--->create api based on this prompt
+
+Entity:-
+- Create a class class named `StoreFaceScanResultModel` mapped to the `MEDGO_FACE_SCAN_RESULTS` table.
+- The class should extend `BaseEntity` to inherit common auditing fields and primary key handling.
+- Annotate the class with `@Entity` and `@Table(name = "MEDGO_FACE_SCAN_RESULTS")`.
+- Include the following fields with proper JPA annotations:
+    - `sessionId` of type `String`, annotated with `@Column(name = "SESSION_ID", nullable = false, unique = true)`, representing a unique session ID.
+    - `fedId` of type `String`, representing the federated membership code.
+    - `memberCode` of type `String`, representing the associated member code.
+    - `scanResult` of type `String`, representing the scan result (e.g., "SUCCESS", "FAILED").
+    - `scanData` of type `String`, annotated with `@Column(name = "SCAN_DATA", columnDefinition = "TEXT")`, storing JSON as a string.
+    - `endTime` of type `LocalDateTime`.
+    - `measurementID` of type `String`, annotated with `@Column(name = "MEASUREMENT_ID")`.
+- Include a method `getScanDataAsJson()` to convert `scanData` JSON string to `Map<String, Object>` with error handling and logging.
+- Include a constructor that accepts `fedId` and `memberCode`.
+- Use Lombok annotations `@Data`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@ToString` and logging annotation `@Slf4j`.
+- Ensure all fields and inherited properties are correctly mapped to the database columns.
+
+Request:-
+create a request class named FetchFaceScanResultRequest in the request package.
+Implement a request DTO FetchFaceScanResultRequest to receive and validate input for fetching a face scan result by session.
+Requirements:
+- Annotate the class with Lombok annotations @Data, @NoArgsConstructor, and @AllArgsConstructor.
+- Include the following field with validation:
+- sessionId of type String, annotated with @NotBlank(message = "Session ID is required").
+- This class will be used in the controller to receive the session ID and fetch the corresponding face scan result from the database.
+
+Controller:-
+create a POST endpoint /fetchResult in the controller.
+Implement a controller method fetchFaceScanResult to fetch a face scan result by session ID.
+Requirements:
+- Annotate the method with @PostMapping("/fetchResult") and @EncryptResponse.
+- Accept a request body of type FetchFaceScanResultRequest annotated with @Valid and @DecryptBody(FetchFaceScanResultRequest.class).
+- Extract the sessionId from the request and call the faceScanService.fetchFaceScanResult(sessionId) method.
+- Return the response as a CommonResponse.
+
+Service Interface:-
+create a method in the FaceScanService interface.
+Define a method fetchFaceScanResult in the FaceScanService interface.
+
+Requirements:
+- The method should accept a single parameter sessionId of type String.
+- The method should return a CommonResponse.
+- This method will be used to fetch the face scan result corresponding to the given session ID.
+
+Service Impl:-
+create an implementation of fetchFaceScanResult in FaceScanServiceImpl.
+Implement the method fetchFaceScanResult in the FaceScanServiceImpl class.
+
+Requirements:
+- Accept a single parameter sessionId of type String.
+- Validate that sessionId is not null or empty; if invalid, return a CommonResponse error with HTTP 400.
+- Fetch the StoreFaceScanResultModel from faceScanResultRepository using sessionId.
+- If no record is found, return a CommonResponse error with HTTP 404.
+- Parse the scanData JSON string from the result into a Map<String, Object> using ObjectMapper.
+- Create a FaceScanResultDto.ScanResult object containing sessionId, endTime, scanResult, and parsed scanData.
+- Wrap the scan result into a FaceScanResultDto with a success message.
+- Return the CommonResponse.success() with the DTO.
+- Handle DataAccessException with HTTP 500 and message "Database error".
+- Handle all other exceptions with HTTP 500 and message "Unexpected error occurred".
+- Include appropriate logging at info, debug, and error levels for all major steps.
+
+Repository:-
+create a Spring Data JPA repository interface FaceScanResultRepository
+Implement a repository interface named FaceScanResultRepository for the entity StoreFaceScanResultModel.
+
+Requirements:
+- Extend JpaRepository<StoreFaceScanResultModel, Long>.
+- Add a method findBySessionId that takes a String sessionId as input and returns an Optional<StoreFaceScanResultModel>.
+- This method should allow fetching a face scan result by its sessionId.

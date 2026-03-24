@@ -1,0 +1,239 @@
+4. /userDetails API - Get User Details-->create api based on this prompt
+
+Purpose
+Retrieve user details (member or non-member) based on authenticated JWT token. This endpoint validates the JWT token, extracts user information, refreshes the token, and returns user profile data including memberCode, email, mobile, consent status, and other user attributes.
+
+---
+
+4.1 Controller Layer - Detailed Explanation Prompt
+
+ROLE: You are a Java Spring Boot backend developer explaining controller layer implementation.
+
+TASK: Explain in detail what happens in the controller layer for the `/userDetails` API endpoint.
+
+CONTEXT:
+- Controller class: `AuthController`
+- Endpoint: `POST /api/v1/auth/userDetails`
+- Request DTO: `UserDetailsRequest` with `userId` field
+- Requires JWT token authentication (extracted from request headers)
+- Requires deviceId validation
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Request Reception:
+   - Spring receives HTTP POST request at `/api/v1/auth/userDetails`
+   - Request body contains encrypted JSON
+
+2. Request Decryption:
+   - `@DecryptBody(UserDetailsRequest.class)` decrypts request
+   - Converts to `UserDetailsRequest` object
+
+3. Validation:
+   - `@Valid` validates:
+     - `userId` - `@NotBlank`, `@Size(max=100)`
+
+4. DeviceId Validation:
+   - `SecurityValidationUtil.validateDeviceId()` checks for deviceId header
+   - If missing: returns HTTP 400 BAD_REQUEST error
+   - If present: continues processing
+
+5. Logging:
+   - Logs: `logger.info("UserDetailsRequest: {}", request.userId());`
+
+6. Service Call:
+   - Calls: `CommonResponse response = registrationService.getUserDetails(request);`
+   - Service validates JWT token, retrieves user details, and refreshes token
+
+7. Response Logging:
+   - Logs: `logger.info("UserDetailsResponse: {}", response);`
+
+8. Response Encryption:
+   - `@EncryptResponse` encrypts response before sending
+
+9. Token Header Processing:
+   - `ResponseHeaderUtil.processTokenResponse(response)` extracts accessToken from response data
+   - Moves accessToken to `X-Access-Token` response header
+   - Removes accessToken from response body
+
+OUTPUT: Detailed explanation of controller layer execution including token header processing.
+
+---
+
+4.2 Service Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot service-layer developer explaining authentication and user data retrieval logic.
+
+TASK: Explain in detail what happens in the service layer for the `getUserDetails` method.
+
+CONTEXT:
+- Service class: `AuthServiceImpl`
+- Method: `public CommonResponse getUserDetails(UserDetailsRequest request)`
+- Validates JWT token from request headers
+- Retrieves user from MEMBER or NON_MEMBER tables
+- Refreshes JWT token and returns user profile data
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Method Entry:
+   - Method: `public CommonResponse getUserDetails(UserDetailsRequest request)`
+   - Receives request with `userId` field
+   - Logs: `LOGGER.info("GetUserDetailsRequest: {}", request.userId());`
+
+2. JWT Token Extraction:
+   - Extracts token: `String token = getTokenFromRequest();`
+   - Checks `Authorization` header (Bearer token) or `X-Access-Token` header
+   - If missing: returns HTTP 401 UNAUTHORIZED error
+
+3. userId Header Validation:
+   - Extracts: `String headerUserId = getUserIdFromRequest();`
+   - If missing: returns HTTP 401 UNAUTHORIZED error
+
+4. Token Validation - DeviceId Extraction:
+   - Extracts deviceId from token: `String tokenDeviceId = jwtTokenUtil.getUsernameFromToken(token);`
+   - Token subject contains deviceId
+   - If missing: returns HTTP 401 UNAUTHORIZED error
+
+5. Header-Token Matching:
+   - Validates: `headerUserId.equals(tokenDeviceId)`
+   - If mismatch: returns HTTP 401 UNAUTHORIZED error
+
+6. Token Validation - UserDetails:
+   - Loads: `UserDetails userDetails = jwtUserDetailsService.loadUserByUsername(tokenDeviceId);`
+   - Validates: `jwtTokenUtil.validateToken(token, userDetails)`
+   - If invalid/expired: returns HTTP 401 UNAUTHORIZED error
+
+7. Username Extraction from Token:
+   - Extracts: `String tokenUsername = jwtTokenUtil.getUsernameFromTokenClaim(token);`
+   - Token claims contain username (email or mobile)
+   - If missing: returns HTTP 401 UNAUTHORIZED error
+
+8. Request-Token Username Matching:
+   - Validates: `tokenUsername.equalsIgnoreCase(request.userId())`
+   - If mismatch: returns HTTP 403 FORBIDDEN error (token doesn't belong to requested user)
+
+9. MEMBER User Lookup:
+   - Searches: `Optional<UserModel> memberUserOpt = userRepository.findByEmailOrMobile(tokenUsername, tokenUsername);`
+   - If found: `if (memberUserOpt.isPresent())`
+
+10. MEMBER User - Status Check:
+    - Gets user: `UserModel user = memberUserOpt.get();`
+    - Checks: `Constants.ACTIVE.equals(user.getStatus().name())`
+    - If inactive: returns HTTP 403 FORBIDDEN with `INACTIVE_USER` error code
+
+11. MEMBER User - Token Refresh:
+    - Loads: `UserDetails userDetails = jwtUserDetailsService.loadUserByUsername(tokenDeviceId);`
+    - Gets identifier: `String userIdentifier = user.getEmail() != null ? user.getEmail() : user.getMobile();`
+    - Gets memberCode: `String memberCode = user.getMemberCode() != null ? user.getMemberCode() : "";`
+    - Generates: `String refreshedToken = jwtTokenUtil.generateToken(userDetails, userIdentifier, memberCode);`
+    - Logs: `LOGGER.info("Refreshed JWT token generated for member user with deviceId: {}, username: {}, memberCode: {}", ...)`
+
+12. MEMBER User - Consent Revalidation:
+    - Checks: `boolean isConsented = user.getIsConsented() != null && user.getIsConsented();`
+    - If consented: `consentService.revalidateUserConsentFlag(user.getId().intValue());`
+    - Reloads user: `user = userRepository.findById(user.getId()).orElse(user);`
+    - Rechecks: `isConsented = user.getIsConsented() != null && user.getIsConsented();`
+
+13. MEMBER User - Response Building:
+    - Prepares data:
+      - `memberCode` - from user.getMemberCode()
+      - `isWhitelisted` - from user.getIsWhitelisted() (default "N")
+      - `firstName` - from user.getFirstName() (default "")
+      - `sex` - from user.getSex() (default 2)
+      - `birthDate` - from user.getBirthDate().toString() (default "")
+      - `email` - from user.getEmail() (default "")
+      - `mobile` - from user.getMobile() (default "")
+      - `isConsented` - boolean consent flag
+      - `accessToken` - refreshed JWT token
+    - Returns: `CommonResponse.success(Map.of(...))`
+
+14. NON_MEMBER User Lookup:
+    - If MEMBER not found: `Optional<NonMemberUserModel> nonMemberUserOpt = nonMemberUserRepositry.findByEmailOrMobile(tokenUsername, tokenUsername);`
+    - If found: `if (nonMemberUserOpt.isPresent())`
+
+15. NON_MEMBER User - Status Check:
+    - Gets user: `NonMemberUserModel user = nonMemberUserOpt.get();`
+    - Checks: `Constants.ACTIVE.equals(user.getStatus().name())`
+    - If inactive: returns HTTP 403 FORBIDDEN with `INACTIVE_USER` error code
+
+16. NON_MEMBER User - Token Refresh:
+    - Loads: `UserDetails userDetails = jwtUserDetailsService.loadUserByUsername(tokenDeviceId);`
+    - Gets identifier: `String userIdentifier = user.getEmail() != null ? user.getEmail() : user.getMobile();`
+    - Generates: `String refreshedToken = jwtTokenUtil.generateToken(userDetails, userIdentifier);`
+    - No memberCode parameter (non-member users don't have memberCode)
+    - Logs: `LOGGER.info("Refreshed JWT token generated for non-member user with deviceId: {}, username: {}", ...)`
+
+17. NON_MEMBER User - Consent Revalidation:
+    - Checks: `boolean isConsented = user.getIsConsented() != null && user.getIsConsented();`
+    - If consented: `consentService.revalidateUserConsentFlag(user.getId().intValue());`
+    - Reloads user: `user = nonMemberUserRepositry.findById(user.getId()).orElse(user);`
+    - Rechecks: `isConsented = user.getIsConsented() != null && user.getIsConsented();`
+
+18. NON_MEMBER User - Response Building:
+    - Prepares data:
+      - `memberCode` - from user.getMemberCode() (default "")
+      - `nonMemberCode` - from user.getNonMemberCode() (default "")
+      - `isWhitelisted` - from user.getIsWhitelisted() (default "N")
+      - `email` - from user.getEmail() (default "")
+      - `mobile` - from user.getMobile() (default "")
+      - `isConsented` - boolean consent flag
+      - `accessToken` - refreshed JWT token
+    - Returns: `CommonResponse.success(Map.of(...))`
+
+19. User Not Found:
+    - If not found in both tables:
+      - Logs warning: `LOGGER.warn("User not found: {}", tokenUsername);`
+      - Returns error: HTTP 404 NOT_FOUND with `USER_NOT_FOUND` code
+
+CLASSES AND METHODS INVOLVED:
+- `AuthServiceImpl` - Service implementation
+- `UserRepository` / `NonMemberUserRepositry` - JPA repositories
+- `UserModel` / `NonMemberUserModel` - JPA entities
+- `JwtTokenUtil` - JWT token utility (validation, extraction, generation)
+- `JwtUserDetailsService` - User details service for token generation
+- `ConsentService` - Consent revalidation service
+- `CommonResponse` - Response wrapper
+- `ErrorResponse` - Error response class
+- `Constants` - Application constants
+- `CustomStatusCode` - Custom error codes
+
+OUTPUT: Detailed explanation of service layer execution, JWT token validation, user lookup, token refresh, and response building.
+
+---
+
+4.3 DTO Layer - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining data transfer object design.
+
+TASK: Explain in detail what happens with the `UserDetailsRequest` DTO class.
+
+CONTEXT:
+- DTO class: `UserDetailsRequest`
+- Package: `com.medgo.auth.domain.request`
+- Type: Java record
+- Field: `userId` (String type)
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Record Class Definition:
+   - `public record UserDetailsRequest(String userId) {}`
+   - Creates one private final field
+   - Constructor and accessor methods
+
+2. Field Validation:
+   - `userId` field:
+     - `@NotBlank(message = "Email or username is required")`
+     - `@Size(max = 100, message = "Email or username must not exceed 100 characters")`
+   - Represents email or mobile number of the user
+
+3. Request Deserialization:
+   - JSON: `{"userId": "user@example.com"}` or `{"userId": "+1234567890"}`
+   - Jackson deserializes to: `new UserDetailsRequest("user@example.com")`
+   - Validation runs automatically
+
+4. Usage:
+   - `userId` is used to match against username extracted from JWT token claims
+   - Must match token username (case-insensitive) for security validation
+   - If mismatch: returns HTTP 403 FORBIDDEN error
+
+**OUTPUT:** Detailed explanation of DTO structure and validation.
+

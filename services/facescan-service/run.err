@@ -1,0 +1,2 @@
+13:01:46,929 |-WARN in ch.qos.logback.core.rolling.FixedWindowRollingPolicy@3668d4 - Large window sizes are not allowed.
+13:01:46,931 |-WARN in ch.qos.logback.core.rolling.FixedWindowRollingPolicy@3668d4 - MaxIndex reduced to 21

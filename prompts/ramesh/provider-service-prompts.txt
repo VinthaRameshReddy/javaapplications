@@ -1,0 +1,43 @@
+================================================================================
+PROVIDER SERVICE (GATEWAY) - API PROMPTS
+================================================================================
+Service: provider-service
+Context path: /provider-service
+Role: Gateway that proxies to shared-provider-service via Feign
+Security: JWT or app-specific (see SecurityConfig); Feign uses Basic Auth + API key to shared
+Base URL config: shared.provider.service.url (e.g. https://sharedinternal-stg.medicardphils.com/shared)
+================================================================================
+
+--- API 1: Cities (Proxy) ---
+Endpoint: POST /provider-service/v1/cities (or /api/v1/provider context depending on mapping)
+Request params: page (default 0, min 0), size (default 10, min 1), search (optional)
+Request body: @DecryptBody(CityRequest.class)
+Response: CommonResponse with @EncryptResponse
+Controller: CitiesProxyController.listCities(page, size, search, request)
+Feign: CitiesClient.listCities(page, size, search, request) -> POST {shared.provider.service.url}/provider/v1/cities
+Notes: FeignClient name "shared-provider-cities", url from shared.provider.service.url, FeignClientConfig (Basic + APIM key).
+
+--- API 2: Doctor – View Doctor Hospital (Proxy) ---
+Endpoint: POST /provider-service/api/v1/provider/doctor
+Request params: page (default 0, min 0), size (default 5, min 5)
+Request body: @DecryptBody(ViewDoctorHospitalRequest.class)
+Response: CommonResponse with @EncryptResponse
+Controller: ProviderProxyController.doctor(page, size, request)
+Feign: SharedProviderServiceClient.doctor(page, size, request) -> POST {url}/provider/v1/doctor
+
+--- API 3: Hospital List (Proxy) ---
+Endpoint: POST /provider-service/api/v1/provider/hospital
+Request params: page (default 0), size (default 10, min 5), search (optional)
+Request body: @DecryptBody(HospitalRequest.class)
+Response: CommonResponse with @EncryptResponse
+Controller: ProviderProxyController.hospital(page, size, search, request)
+Feign: SharedProviderServiceClient.hospital(page, size, search, request) -> POST {url}/provider/v1/hospital
+
+--- Feign Client Config (Provider Service) ---
+- FeignClientConfig: DependsOn("azureKeyVaultService"). Loads: shared-provider-basic-user, shared-provider-basic-password, shared-provider-apim-header, shared-provider-apim-key.
+- Interceptors: BasicAuthRequestInterceptor(basicUser, basicPassword); header(apimHeader, apimKey); header("Postman-Token", "bypass-encryption").
+- SharedProviderServiceClient: name="shared-provider-service", url="${shared.provider.service.url}", configuration=FeignClientConfig.class.
+- CitiesClient: name="shared-provider-cities", same url, same config.
+- Request body: sent as @RequestBody (plain) to shared; gateway receives @DecryptBody and forwards decrypted payload.
+
+================================================================================

@@ -1,0 +1,263 @@
+API:-/faceScan-service/api/v1/faceScan/eligibility-->create api based on this prompt
+
+medgo package this entities we will create:-
+
+Entity: -
+Base Entity:-
+Create a class named BaseEntity as a superclass for JPA entities.
+- Annotate the class with @MappedSuperclass and Lombok @Data. - Implement Serializable.
+- Include the following fields with proper JPA and Spring Data auditing annotations:
+- id of type Long, annotated with @Id and @GeneratedValue(strategy = GenerationType.IDENTITY).
+- createdOn of type LocalDateTime, annotated with @CreatedDate and @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss"), with default value LocalDateTime.now().
+- createdBy of type String, annotated with @CreatedBy, with default value "System".
+- updatedOn of type LocalDateTime, annotated with @LastModifiedDate and @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss").
+- updatedBy of type String, annotated with @LastModifiedBy.
+- Ensure all fields have proper JPA column mapping if necessary.
+- The class should serve as a base class for other entities, providing common auditing fields and primary key handling.
+
+face scan member white listed entity:- 
+- Create a class named `FaceScanMemberWhiteListedModel` mapped to the `MEDGO_FACE_SCAN_MEMBER_WHITELISTED` table.
+- The class should extend `BaseEntity` to inherit common auditing fields and primary key handling.
+- Annotate the class with `@Entity` and `@Table(name = "MEDGO_FACE_SCAN_MEMBER_WHITELISTED")`.
+- Include the following fields with proper JPA annotations:
+    - `memberCode` of type `String`, annotated with `@Column(name = "MEMBER_CODE", nullable = false, unique = true)`.
+    - `memberType` of type `Character`, annotated with `@Column(name = "MEMBER_TYPE")`.
+    - `startDate` of type `LocalDateTime`, annotated with `@Column(name = "START_DATE")`.
+    - `endDate` of type `LocalDateTime`, annotated with `@Column(name = "END_DATE")`.
+- Use Lombok annotations `@Getter`, `@Setter`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Builder` for boilerplate code reduction.
+- Ensure all fields and inherited properties are correctly mapped to the database columns.
+
+face scan session model entity:-
+Entity: 
+- Create a class named `FaceScanSessionModel` mapped to the `MEDGO_FACE_SCAN_SESSION` table.
+- The class should extend `BaseEntity` to inherit common auditing fields and primary key handling.
+- Annotate the class with `@Entity` and `@Table(name = "MEDGO_FACE_SCAN_SESSION")`.
+- Include the following fields with proper JPA annotations:
+    - `fedId` of type `String`, annotated with `@Column(name = "FED_ID", nullable = false, unique = true)`.
+    - `memberCode` of type `String`, annotated with `@Column(name = "MEMBER_CODE")`.
+    - `sessionId` of type `String`, annotated with `@Column(name = "SESSION_ID")`.
+    - `consent` of type `boolean`, annotated with `@Column(name = "CONSENT")`.
+    - `creationTime` of type `LocalDateTime`, annotated with `@Column(name = "CREATED_TIME")`.
+    - `age` of type `Integer`, annotated with `@Column(name = "AGE")`.
+    - `memberName` of type `String`, annotated with `@Column(name = "MEMBER_NAME")`.
+    - `gender` of type `String`, annotated with `@Column(name = "GENDER")`.
+    - `weight` of type `Double`, annotated with `@Column(name = "WEIGHT")`.
+    - `height` of type `Double`, annotated with `@Column(name = "HEIGHT")`.
+    - `isSmoker` of type `String`, annotated with `@Column(name = "IS_SMOKER")`.
+    - `isDiabetic` of type `String`, annotated with `@Column(name = "IS_DIABETIC")`.
+    - `bpMedication` of type `String`, annotated with `@Column(name = "BP_MEDICATION")`.
+    - `sessionEndTime` of type `LocalDateTime`, annotated with `@Column(name = "SESSION_END_TIME")`.
+    - `status` of type `String`, annotated with `@Column(name = "STATUS")`.
+- Include a constructor that accepts `fedId` and `memberCode`.
+- Use Lombok annotations `@Data`, `@NoArgsConstructor`, `@ToString` for boilerplate reduction.
+- Ensure all fields and inherited properties are correctly mapped to the database columns.
+
+face scan white listed model entity:-
+
+Entity: 
+- Create a class named `FaceScanWhiteListedModel` mapped to the `MEDGO_FACE_SCAN_WHITELISTED` table.
+- The class should extend `BaseEntity` to inherit common auditing fields and primary key handling.
+- Annotate the class with `@Entity` and `@Table(name = "MEDGO_FACE_SCAN_WHITELISTED")`.
+- Include the following fields with proper JPA annotations:
+    - `accountCode` of type `String`, annotated with `@Column(name = "ACCOUNT_CODE", nullable = false, unique = true)`.
+    - `memberType` of type `Character`, annotated with `@Column(name = "MEMBER_TYPE")`.
+    - `startDate` of type `LocalDateTime`, annotated with `@Column(name = "START_DATE")`.
+    - `endDate` of type `LocalDateTime`, annotated with `@Column(name = "END_DATE")`.
+- Use Lombok annotations `@Getter`, `@Setter`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@Builder` for boilerplate code reduction.
+- Ensure all fields and inherited properties are correctly mapped to the database columns.
+
+
+face scan results:-
+Entity: 
+- Create a class class named `StoreFaceScanResultModel` mapped to the `MEDGO_FACE_SCAN_RESULTS` table.
+- The class should extend `BaseEntity` to inherit common auditing fields and primary key handling.
+- Annotate the class with `@Entity` and `@Table(name = "MEDGO_FACE_SCAN_RESULTS")`.
+- Include the following fields with proper JPA annotations:
+    - `sessionId` of type `String`, annotated with `@Column(name = "SESSION_ID", nullable = false, unique = true)`, representing a unique session ID.
+    - `fedId` of type `String`, representing the federated membership code.
+    - `memberCode` of type `String`, representing the associated member code.
+    - `scanResult` of type `String`, representing the scan result (e.g., "SUCCESS", "FAILED").
+    - `scanData` of type `String`, annotated with `@Column(name = "SCAN_DATA", columnDefinition = "TEXT")`, storing JSON as a string.
+    - `endTime` of type `LocalDateTime`.
+    - `measurementID` of type `String`, annotated with `@Column(name = "MEASUREMENT_ID")`.
+- Include a method `getScanDataAsJson()` to convert `scanData` JSON string to `Map<String, Object>` with error handling and logging.
+- Include a constructor that accepts `fedId` and `memberCode`.
+- Use Lombok annotations `@Data`, `@NoArgsConstructor`, `@AllArgsConstructor`, `@ToString` and logging annotation `@Slf4j`.
+- Ensure all fields and inherited properties are correctly mapped to the database columns.
+
+membership package we need to create this entities:-
+
+Membership Entity: 
+- Create a class named `MembershipModel` mapped to the `med_vm_mcap_membership` table.
+- Annotate the class with `@Entity` and `@Table(name = "med_vm_mcap_membership")`.
+- Include the following fields with proper JPA annotations:
+    - `memberCode` of type `String`, annotated with `@Id` and `@Column(name = "PRIN_CODE")`.
+    - `principalCode` of type `String`, annotated with `@Column(name = "PRINCIPAL_CODE")`.
+    - `memberAppNum` of type `String`, annotated with `@Column(name = "MEM_APPNUM")`.
+    - `firstName` of type `String`, annotated with `@Column(name = "MEM_FNAME")`.
+    - `lastName` of type `String`, annotated with `@Column(name = "MEM_LNAME")`.
+    - `middleName` of type `String`, annotated with `@Column(name = "MEM_MI")`.
+    - `sex` of type `Integer`, annotated with `@Column(name = "MEM_SEX")`.
+    - `age` of type `String`, annotated with `@Column(name = "AGE")`.
+    - `birthDate` of type `LocalDateTime`, annotated with `@Column(name = "MEM_BDAY")` and `@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")`.
+    - `civilStatus` of type `String`, annotated with `@Column(name = "CIVIL_STATUS")`.
+    - `memStatusCode` of type `String`, annotated with `@Column(name = "MEM_STATUS_CODE")`.
+    - `memStatus` of type `String`, annotated with `@Column(name = "MEM_STATUS")`.
+    - `memType` of type `String`, annotated with `@Column(name = "MEM_TYPE")`.
+    - `planDesc` of type `String`, annotated with `@Column(name = "Plan_Desc")`.
+    - `effectivityDate` of type `LocalDateTime`, annotated with `@Column(name = "EFF_DATE")` and `@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")`.
+    - `validityDate` of type `LocalDateTime`, annotated with `@Column(name = "VAL_DATE")` and `@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")`.
+    - `resignDate` of type `LocalDateTime`, annotated with `@Column(name = "RESIGN_DATE")` and `@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")`.
+    - `motherCode` of type `String`, annotated with `@Column(name = "MOTHER_CODE")`.
+    - `accountCode` of type `String`, annotated with `@Column(name = "ACCOUNT_CODE")`.
+    - `accountName` of type `String`, annotated with `@Column(name = "ACCOUNT_NAME")`.
+    - `accountType` of type `String`, annotated with `@Column(name = "ACCOUNT_TYPE")`.
+    - `idRem`, `idRem2`, `idRem3`, `idRem4`, `idRem5`, `idRem6`, `idRem7` of type `String`, annotated with `@Column(name = "ID_REM")`, `@Column(name = "ID_REM2")`, etc.
+    - `otherRemarks` of type `String`, annotated with `@Column(name = "OTHER_REM")`.
+    - `rspRoomRateId` of type `Integer`, annotated with `@Column(name = "RSPROOMRATE_ID")`.
+- Include constructors:
+    - `MembershipModel(String memberCode, String dob)`
+    - `MembershipModel(String memberCode, LocalDateTime birthDate)`
+- Use Lombok annotations `@Data`, `@AllArgsConstructor`, `@NoArgsConstructor` for boilerplate code reduction.
+- Ensure all fields are properly mapped to the database columns.
+
+
+
+Controller:
+- Create a class a Spring Boot REST controller named `FaceScanController`.
+- Annotate the class with `@RestController`, `@RequestMapping("/api/v1/faceScan")`, `@Validated`, and `@Slf4j` for logging.
+- Inject `FaceScanService` via constructor injection.
+- Add a POST endpoint `/eligibility`:
+    - Annotate the method with `@PostMapping("/eligibility")`.
+    - Accept a request body of type `FaceScanEligibilityRequest` annotated with `@RequestBody`, `@Valid`, and custom `@DecryptBody(FaceScanEligibilityRequest.class)`.
+    - Call `faceScanService.checkEligibility(request.getMemberCode())` to handle the business logic.
+    - Annotate the method with `@EncryptResponse` to encrypt the response.
+- Return a `CommonResponse` from the endpoint.
+
+Request:
+- Create a request class named `FaceScanEligibilityRequest` in the request package.
+- Annotate the class with Lombok annotations `@Data`, `@NoArgsConstructor`, and `@AllArgsConstructor`.
+- Extend the base class `BaseDto`.
+- Include the following field:
+    - `memberCode` of type `String`, annotated with `@NotBlank(message = "Member code is required")` to enforce validation.
+- The class should be used to receive and validate input data for face scan eligibility checks.
+
+
+
+Service:-
+-Create a class a Spring service interface named `FaceScanService`.
+- The interface should define the following method:
+    - `checkEligibility`:
+        - Accepts a single parameter `memberCode` of type `String`.
+        - Returns a `CommonResponse`.
+- Do not provide any implementation in this interface.
+- The interface will be implemented by a service class to handle business logic for face scan operations.
+
+
+Serviceimpl:-
+
+create a class complete Spring Boot service implementation class named `FaceScanServiceImpl` in package `com.medgo.facescan.service.impl` that implements `FaceScanService`. Annotate it with `@Service` and `@Slf4j`. Use constructor injection for:
+- FaceScanSessionRepository
+- FaceScanResultRepository
+- FaceScanWhiteListedRepository
+- FaceScanMemberWhiteListedRepository
+- MembershipModelRepository
+- ObjectMapper
+Include these configuration fields with `@Value` defaults:
+- facescan.cooling.time.days = 7
+- facescan.cooling.time.hours = 0
+- facescan.cooling.time.mins = 0
+
+Implement the method:
+`public CommonResponse checkEligibility(String memberCode)`
+with the **exact logic**:
+1. Log start of eligibility check.  
+2. Validate `memberCode`; if null/empty, log error and return `CommonResponse.error(new ErrorResponse(400, FaceScanErrorMessages.MEMBER_CODE_NULL_OR_EMPTY), 400)`.  
+3. Fetch `MembershipModel` from `membershipRepository.findByMemberCode(memberCode)`; if not found, log warning and return `CommonResponse.error(new ErrorResponse(404, FaceScanErrorMessages.MEMBER_CODE_NOT_FOUND), 404)`.  
+4. Extract `accountCode` and `memberType` from member:
+   `Character memberType = member.getMemType().charAt(0);`
+5. Check active status using `faceScanMemberWhiteListedRepository.findActiveMember` and `faceScanWhiteListedRepository.findActiveMember`; if inactive, log warning and return `CommonResponse.error(new ErrorResponse(100, FaceScanErrorMessages.NOT_CORPORATE_USER), 100)`.  
+6. Fetch last session:
+   `List<FaceScanSessionModel> sessions = sessionRepository.findTop1ByMemberCode(memberCode, PageRequest.of(0,1));`  
+   `FaceScanSessionModel lastSession = sessions.isEmpty() ? null : sessions.get(0);`
+7. **Inside this block (`if lastSession != null`)**:  
+   - Initialize:
+     ```
+     String fedId = null;
+     Map<String, Object> lastScanData = null;
+     Map<String, Object> sessionFields = new HashMap<>();
+     Long sessionId = 0L;
+     ```
+   - Populate session fields: `fedId = lastSession.getFedId(); sessionId = lastSession.getId();`  
+   - `sessionFields.put("height", lastSession.getHeight())`, etc.  
+   - Fetch last scan result **here**, using:
+     ```
+     List<StoreFaceScanResultModel> lastScanResult = faceScanResultRepository.findLatestScanByMemberCode(memberCode);
+     if (lastScanResult != null && !lastScanResult.isEmpty()) {
+         lastScanData = objectMapper.readValue(lastScanResult.get(0).getScanData(), Map.class);
+         log.debug("Found previous scan data for member {}", memberCode);
+     }
+     ```
+   - Check cooldown using `isCooldownOver`; if not over, calculate remaining time using `getTimeLeftForNextScan()`, format with `formatDuration()`, log warning, and return `CommonResponse.error(new ErrorResponse(102, FaceScanErrorMessages.FACE_SCAN_LIMIT_EXCEEDED), 102)`.
+8. Generate new `fedId` if null using `generateFedId()`.  
+9. Create or update `FaceScanSessionModel`, set `updatedOn = LocalDateTime.now()`, save session.  
+10. Prepare `responseData` map with `federatedMembershipCode`, `lastScanData`, `sessionFields`.  
+11. Return `CommonResponse.success(responseData)`.
+Include **private helper methods**: `isCooldownOver`, `getTimeLeftForNextScan`, `formatDuration`, `generateFedId`.
+Include **full exception handling**:  
+- Catch `DataAccessException` → log and return `CommonResponse.error(new ErrorResponse(500, FaceScanErrorMessages.DATABASE_ERROR), 500)`  
+- Catch generic `Exception` → log and return `CommonResponse.error(new ErrorResponse(500, FaceScanErrorMessages.UNEXPECTED_ERROR), 500)`
+
+**Important:** Do **not** move `lastScanResult` fetching outside the `if(lastSession != null)` block. Keep logging, variable names, error codes, and structure **exactly as described**. Output must be a **ready-to-compile Java class**.
+
+
+Repository:-
+
+membership model repository:-
+Create a Spring Data JPA repository interface named MembershipModelRepository that extends JpaRepository<MembershipModel, String>. 
+Include a custom method named findByMemberCode using a native SQL query. The query must:
+- Select all columns (SELECT *) from the table med_vm_mcap_membership
+- Filter rows where PRIN_CODE equals :memberCode
+- Use the @Query annotation with nativeQuery = true
+- Return an Optional<MembershipModel>
+- Include the proper @Param annotation for memberCode
+- Keep the query exactly as: "SELECT * FROM med_vm_mcap_membership WHERE PRIN_CODE = :memberCode"
+
+
+FaceScanMemberWhiteListedRepository:-
+Create a repository class named FaceScanMemberWhiteListedRepository. The repository should be implemented using Spring Data JPA.
+"Give me a Spring Data JPA repository interface for FaceScanMemberWhiteListedModel that extends JpaRepository<FaceScanMemberWhiteListedModel, Long>. Include a custom method named findActiveMember using a JPQL @Query that counts all records where:
+- w.memberCode = :memberCode
+- w.memberType is null or equals :memberType
+- w.startDate is null or <= :currentDate
+- w.endDate is null or >= :currentDate
+Use proper @Param annotations for memberCode, memberType, and currentDate. The query must return an Integer representing the count. Keep the JPQL query exactly as: 
+\"SELECT COUNT(*) FROM FaceScanMemberWhiteListedModel w WHERE w.memberCode = :memberCode AND (w.memberType IS NULL OR w.memberType = :memberType) AND (w.startDate IS NULL OR w.startDate <= :currentDate) AND (w.endDate IS NULL OR w.endDate >= :currentDate)\""
+
+FaceScanWhiteListedRepository:-
+
+Create a repository class named FaceScanWhiteListedRepository. The repository should be implemented using Spring Data JPA.
+"Give me a Spring Data JPA repository interface for FaceScanWhiteListedModel that extends JpaRepository<FaceScanWhiteListedModel, Long>. Include a custom method named findActiveMember using a JPQL @Query that counts all records where:
+- w.accountCode = :accountCode
+- w.memberType is null or equals :memberType
+- w.startDate is null or <= :currentDate
+- w.endDate is null or >= :currentDate
+Use proper @Param annotations for accountCode, memberType, and currentDate. The query must return an Integer representing the count. Keep the JPQL query exactly as:
+\"SELECT COUNT(*) FROM FaceScanWhiteListedModel w WHERE w.accountCode = :accountCode AND (w.memberType IS NULL OR w.memberType = :memberType) AND (w.startDate IS NULL OR w.startDate <= :currentDate) AND (w.endDate IS NULL OR w.endDate >= :currentDate)\""
+
+FaceScanSessionRepository:-
+
+Create a repository class named FaceScanSessionRepository. The repository should be implemented using Spring Data JPA.
+"Give me a Spring Data JPA repository interface for FaceScanSessionModel that extends JpaRepository<FaceScanSessionModel, Long>. Include a custom method named findTop1ByMemberCode using a JPQL @Query that selects sessions where:
+- s.memberCode = :memberCode
+- Results are ordered by s.sessionEndTime descending
+- Use proper @Param annotation for memberCode and support Pageable as a method parameter. The query must return a List<FaceScanSessionModel> and keep the JPQL query exactly as:
+\"SELECT s FROM FaceScanSessionModel s WHERE s.memberCode = :memberCode ORDER BY s.sessionEndTime DESC\""
+
+FaceScanResultRepository:-
+
+Create a repository class named FaceScanResultRepository. The repository should be implemented using Spring Data JPA.
+"Give me a Spring Data JPA repository interface for StoreFaceScanResultModel that extends JpaRepository<StoreFaceScanResultModel, Long>. Include a custom method named findLatestScanByMemberCode that returns a List of StoreFaceScanResultModel and accepts a single parameter memberCode of type String. Keep the method signature exactly as:
+List<StoreFaceScanResultModel> findLatestScanByMemberCode(String memberCode);"
+
+

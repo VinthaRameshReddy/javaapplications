@@ -1,0 +1,144 @@
+# Gradle
+# Build your Java project and run tests with Gradle using a Gradle wrapper script.
+# Add steps that analyze code, save build artifacts, deploy, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/java
+
+trigger:
+  paths:
+    include:
+      - 'shared/{{ cookiecutter.service_slug }}/*'
+      
+pool:
+  name: Unix Build
+
+
+resources:
+  - repo: self
+variables:
+  - group: AWS-keys
+  - group: AWS-reference-keys
+  - group: Kotak-ECR-Credentials
+  - group: Key-Vault-Vars
+  - name: appName
+    value: $(Build.DefinitionName)
+  - name: isMain
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+  - name: isUat
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/CI-add-uat')]
+  - name: workingDir
+    value: 'shared/{{ cookiecutter.service_slug }}'
+  - name: AWS_CREDENTIAL
+    value: 'KOTAK-ECR-AUTH-SERVICE'
+  - name: GRADLE_USER_HOME
+    value: $(Pipeline.Workspace)/.gradle
+  - name: AZURE_DEVOPS_EXT_PAT
+    value: '$(Personal-Access-Token)'
+  - name: SonarServerName
+    value: 10.53.81.5:8080
+  - name: SonarProjectKey
+    value: mb-2-0-{{ cookiecutter.service_slug }}
+  - name: SonarToken
+    value: '$(sonarQube-resultcheck-token)'
+  - name: service-name
+    value: {{ cookiecutter.service_slug }}
+
+stages:
+  - stage: Build
+    displayName: Build code
+    jobs:
+      - job: Build
+        displayName: Build
+        steps:
+          - checkout: self
+            persistCredentials: true
+
+          - task: Bash@3
+            condition: ne(variables.isUat, 'true')
+            displayName: Pre-requisites
+            inputs:
+              targetType: 'inline'
+              script: 'cd $(workingDir)/ && chmod +x ./gradlew'
+          
+          - task: Cache@2
+            condition: ne(variables.isUat, 'true')
+            displayName: Configure gradle caching
+            inputs:
+              key: 'gradle | "$(Agent.OS)" | **/build.gradle'
+              restoreKeys: |
+                gradle | "$(Agent.OS)"
+                gradle
+              path: $(GRADLE_USER_HOME)
+          
+          - task: SonarQubePrepare@4
+            condition: ne(variables.isUat, 'true')
+            inputs:
+              SonarQube: 'SonarQube-MB2.0'
+              scannerMode: 'Other'
+              extraProperties: |
+                sonar.projectKey=$(SonarProjectKey)
+                sonar.log.level=DEBUG
+            
+          - task: Bash@3
+            condition: ne(variables.isUat, 'true')
+            displayName: Removing Branch Name
+            inputs:
+              targetType: 'inline'
+              script: |
+                #!/bin/bash
+                cd $(workingDir);
+                var=`gradle printVersion | awk '/printVersion/{getline;print}'`
+                tag=`echo "v"$var-$(Build.BuildId)`
+                echo "##vso[task.setvariable variable=tag]$tag"
+                TEMP_VAR=`echo $SONARQUBE_SCANNER_PARAMS | sed 's/"sonar.branch.name".*,"sonar.scanner/"sonar.scanner/g'`
+                echo "##vso[task.setvariable variable=SONARQUBE_SCANNER_PARAMS]$TEMP_VAR"
+                echo $tag 
+
+          - task: Gradle@2
+            condition: and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables.isUat, 'true'))
+            displayName: Gradle Build
+            inputs:
+              cwd: $(workingDir)
+              workingDirectory: $(workingDir)
+              gradleWrapperFile: "$(workingDir)/gradlew"
+              gradleOptions: '-Xmx1024m'
+              tasks: 'clean build'
+              options: '--build-cache'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: 'default'
+              jdkArchitectureOption: 'x64'
+              publishJUnitResults: true
+              testResultsFiles: '**/TEST-*.xml'
+              sonarQubeRunAnalysis: true
+              sqGradlePluginVersionChoice: 'build'
+              spotBugsAnalysis: false
+              
+          - task: Gradle@2
+            condition: eq(variables['Build.Reason'], 'PullRequest')
+            displayName: Pull Request Gradle Build
+            inputs:
+              cwd: $(workingDir)
+              workingDirectory: $(workingDir)
+              gradleWrapperFile: "$(workingDir)/gradlew"
+              gradleOptions: '-Xmx1024m'
+              tasks: 'clean build'
+              options: '--build-cache'
+              javaHomeOption: 'JDKVersion'
+              jdkVersionOption: 'default'
+              jdkArchitectureOption: 'x64'
+              publishJUnitResults: true
+              testResultsFiles: '**/TEST-*.xml'
+
+          - task: SonarQubePublish@4
+            #condition: and(succeeded(), eq(variables.isMain, 'true'))
+            inputs:
+              pollingTimeoutSec: '300'
+          
+          - task: AzureCLI@2
+            displayName: Assess SonarQube Results
+            inputs:
+              azureSubscription: 'Microsoft Azure DevOps (39ac6650-eb05-4bc6-abb3-5751abf3df0e)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                cd shared/scripts
+                ./get-sonarqube-quality-gate-status.ps1 -SonarServerName $(SonarServerName) -SonarProjectKey $(SonarProjectKey) -SonarToken $(SonarToken)

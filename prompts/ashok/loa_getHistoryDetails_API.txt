@@ -1,0 +1,310 @@
+8. /transaction/historyDetails/{id} API - Get LOA History Details/09-12-2025-->create api based on this prompt
+
+Purpose
+Retrieve detailed information for a specific LOA (Letter of Authorization) transaction by transaction ID. Returns complete transaction details including service type, member information, consultation details, and transaction status. This endpoint acts as a proxy to the Medicard API, automatically handling authentication token management.
+
+---
+
+8.1 Controller Layer - Detailed Explanation Prompt
+
+ROLE: You are a Java Spring Boot backend developer explaining controller layer implementation.
+
+TASK: Explain in detail what happens in the controller layer for the `/transaction/historyDetails/{id}` API endpoint.
+
+CONTEXT:
+- Controller class: `LoaController`
+- Endpoint: `GET /transaction/historyDetails/{id}` (full path: `/loa-service/transaction/historyDetails/{id}`)
+- Path Variable: `id` (transaction ID)
+- Request Parameters: `systemOrigin`, `originMemberCode`
+- Acts as proxy to Medicard API via Feign client
+- Automatic authentication via FeignClientConfig
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Request Reception:
+   - Spring receives HTTP GET request at `/transaction/historyDetails/{id}`
+   - Path variable `{id}` extracted from URL
+   - Request parameters passed as query string
+   - Context path: `/loa-service` (from `server.servlet.context-path`)
+
+2. Path Variable Extraction:
+   - `id` parameter:
+     - Extracted from URL path: `/transaction/historyDetails/21909`
+     - Annotation: `@PathVariable("id")`
+     - Type: `Long`
+     - Purpose: Transaction ID to retrieve details for
+
+3. Request Parameter Extraction:
+   - `systemOrigin` parameter:
+     - Annotation: `@RequestParam("systemOrigin")`
+     - Type: `String`
+     - Required: Yes (no `required = false`)
+     - Purpose: System origin identifier (MCAP or MACE)
+   - `originMemberCode` parameter:
+     - Annotation: `@RequestParam("originMemberCode")`
+     - Validation: `@Size(max = 50, message = "originMemberCode must not exceed 50 characters")`
+     - Type: `String`
+     - Required: Yes (no `required = false`)
+     - Purpose: Member code for the transaction
+
+4. System Origin Validation:
+   - Calls: `SystemOriginEnum origin = SystemOriginEnum.fromCode(systemOrigin);`
+   - `SystemOriginEnum.fromCode()`:
+     - Validates `systemOrigin` value
+     - Accepts: "MCAP" or "MACE"
+     - Returns: `SystemOriginEnum` enum value or `null` if invalid
+   - If invalid (`origin == null`):
+     - Logs: `log.error("Invalid systemOrigin: {}. Must be MCAP or MACE", systemOrigin);`
+     - Creates error: `new ErrorResponse(400, "INVALID_SYSTEM_ORIGIN", "Invalid systemOrigin. Must be MCAP or MACE", Collections.emptyList())`
+     - Returns: `CommonResponse.error(error, 400)` with HTTP 400 Bad Request
+     - Method execution stops (does not call Feign client)
+
+5. Parameter Validation:
+   - Spring validates `originMemberCode`:
+     - If length > 50: Returns HTTP 400 Bad Request with message "originMemberCode must not exceed 50 characters"
+
+6. Feign Client Call (if validation passes):
+   - Calls: `Object response = medicardApiClient.getLoaHistoryDetails(id, systemOrigin, originMemberCode);`
+   - `MedicardApiClient` is a Feign client interface
+   - Automatically adds authentication token via `FeignClientConfig`
+   - Forwards request to: `GET /mcap/mace-medgo/service/transaction/v2/{id}` at Medicard API
+   - Path variable and query parameters passed to Medicard API
+
+7. Response Handling:
+   - If successful: `return CommonResponse.success(response);`
+   - Wraps Medicard API response in `CommonResponse` wrapper
+   - Response contains detailed transaction information
+
+8. No Explicit Exception Handling:
+   - No try-catch block (exceptions propagate to GlobalExceptionHandler)
+   - Errors handled by Feign error decoder
+
+OUTPUT: Detailed explanation of controller layer execution, path variable extraction, system origin validation, and Feign client integration.
+
+---
+
+8.2 Feign Client Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot developer explaining Feign client integration and automatic authentication.
+
+TASK: Explain in detail what happens in the Feign client layer when calling the Medicard API for LOA history details.
+
+CONTEXT:
+- Feign Client: `MedicardApiClient`
+- Endpoint: `GET /mcap/mace-medgo/service/transaction/v2/{id}`
+- Base URL: Configured via `medicard.api.url` property
+- Configuration: `FeignClientConfig` (automatic token injection)
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Feign Client Interface:
+   - `@FeignClient(name = "medicard-api", url = "${medicard.api.url}", configuration = FeignClientConfig.class)`
+   - Method: `Object getLoaHistoryDetails(Long id, String systemOrigin, String originMemberCode);`
+   - Mapping: `@GetMapping("/mcap/mace-medgo/service/transaction/v2/{id}")`
+   - Path Variable: `@PathVariable("id")` for transaction ID
+   - Query Parameters: `@RequestParam` for `systemOrigin` and `originMemberCode`
+
+2. Request Interceptor Execution:
+   - `FeignClientConfig.combinedHeadersInterceptor()` intercepts request
+   - Executes before HTTP request is sent
+
+3. APIM Key Header Addition:
+   - Checks: `if (loaApimKey != null && !loaApimKey.isEmpty())`
+   - Adds header: `requestTemplate.header("Ocp-Apim-Subscription-Key", loaApimKey);`
+   - APIM key from: `@Value("${loa.apim-key}")` property
+
+4. Authentication Token Retrieval:
+   - Calls: `String accessToken = tokenService.getAccessToken();`
+   - `TokenService.getAccessToken()`:
+     a. Checks cached token validity (with 5-minute buffer)
+     b. If valid: Returns cached token
+     c. If expired/invalid: Fetches new token from Medicard Auth API
+     d. Caches new token with expiry time
+     e. Returns access token
+
+5. Authorization Header Addition:
+   - Extracts token value (removes "Bearer " prefix if present)
+   - Adds header: `requestTemplate.header("Authorization", "Bearer " + tokenValue);`
+   - Token format: `Bearer <access_token>`
+
+6. HTTP Request Execution:
+   - Feign client sends HTTP GET request to Medicard API
+   - URL: `{medicard.api.url}/mcap/mace-medgo/service/transaction/v2/{id}`
+   - Path Variable: `{id}` replaced with actual transaction ID (e.g., `21909`)
+   - Query Parameters:
+     - `systemOrigin`: System origin (MCAP or MACE)
+     - `originMemberCode`: Member code
+   - Example URL: `/mcap/mace-medgo/service/transaction/v2/21909?systemOrigin=MCAP&originMemberCode=2621761`
+   - Headers:
+     - `Authorization: Bearer <token>`
+     - `Ocp-Apim-Subscription-Key: <apim-key>`
+
+7. Response Handling:
+   - Receives response from Medicard API
+   - Response typically contains:
+     - Transaction ID
+     - Service type and subtype
+     - Member information
+     - Consultation/test/inpatient details
+     - Transaction status
+     - Dates and timestamps
+     - Attachments and notes
+   - Deserializes JSON response to `Object`
+   - Returns response to controller
+
+8. Error Handling:
+   - `FeignClientConfig.errorDecoder()` handles errors
+   - 401 Unauthorized: Clears cached token, logs error
+   - 403 Forbidden: Clears cached token, logs error
+   - 404 Not Found: Transaction ID not found, returns 404 with error details
+   - Other errors: Uses default error decoder
+
+CLASSES AND METHODS INVOLVED:
+- `MedicardApiClient` - Feign client interface
+- `FeignClientConfig` - Feign configuration with interceptors
+- `TokenService` - Token management service
+- `RequestInterceptor` - Feign request interceptor
+- `ErrorDecoder` - Feign error decoder
+
+OUTPUT: Detailed explanation of Feign client execution, automatic token injection, path variable and query parameter handling, and error handling.
+
+---
+
+8.3 System Origin Enum Validation - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining enum validation and system origin handling.
+
+TASK: Explain in detail what happens with the system origin validation using `SystemOriginEnum`.
+
+CONTEXT:
+- Enum class: `SystemOriginEnum`
+- Purpose: Validates and converts system origin string to enum value
+- Valid values: "MCAP" or "MACE"
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. System Origin Parameter:
+   - Received as: `String systemOrigin` from request parameter
+   - Example values: "MCAP", "MACE"
+   - Case-sensitive validation
+
+2. Enum Conversion:
+   - Calls: `SystemOriginEnum origin = SystemOriginEnum.fromCode(systemOrigin);`
+   - `SystemOriginEnum.fromCode()` method:
+     - Takes string parameter
+     - Compares with enum code values
+     - Returns matching `SystemOriginEnum` value
+     - Returns `null` if no match found
+
+3. Valid System Origins:
+   - `MCAP`: MediCard Authorization Portal
+   - `MACE`: MediCard Authorization Center
+   - Both are valid enum values
+
+4. Validation Check:
+   - If `origin == null`:
+     - System origin is invalid
+     - Logs error: `log.error("Invalid systemOrigin: {}. Must be MCAP or MACE", systemOrigin);`
+     - Creates error response:
+       - Status code: `400`
+       - Error code: `"INVALID_SYSTEM_ORIGIN"`
+       - Message: `"Invalid systemOrigin. Must be MCAP or MACE"`
+       - Errors list: `Collections.emptyList()`
+     - Returns: `CommonResponse.error(error, 400)`
+     - HTTP Status: 400 Bad Request
+     - Method execution stops (does not proceed to Feign client call)
+
+5. Validation Success:
+   - If `origin != null`:
+     - System origin is valid
+     - Proceeds to Feign client call
+     - Passes `systemOrigin` string to Medicard API (not enum)
+
+6. Error Response Format:
+   - `ErrorResponse` object:
+     - `statusCode`: `400`
+     - `errorCode`: `"INVALID_SYSTEM_ORIGIN"`
+     - `message`: `"Invalid systemOrigin. Must be MCAP or MACE"`
+     - `errors`: Empty list
+   - Wrapped in: `CommonResponse.error(error, 400)`
+
+CLASSES AND METHODS INVOLVED:
+- `SystemOriginEnum` - Enum class for system origins
+- `SystemOriginEnum.fromCode()` - Static method for enum conversion
+- `ErrorResponse` - Error response DTO
+- `CommonResponse` - Response wrapper
+
+OUTPUT: Detailed explanation of system origin validation, enum conversion, error handling, and response format.
+
+---
+
+8.4 Path Variable and Request Parameters - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining path variable and request parameter handling.
+
+TASK: Explain in detail what happens with the path variable and request parameters for the LOA history details endpoint.
+
+CONTEXT:
+- Endpoint: `GET /transaction/historyDetails/{id}`
+- Path Variable: `id` (transaction ID)
+- Request Parameters: `systemOrigin`, `originMemberCode`
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Path Variable - id:
+   - Annotation: `@PathVariable("id")`
+   - Type: `Long`
+   - Extraction: Spring extracts from URL path
+   - Example URL: `/transaction/historyDetails/21909`
+   - Extracted value: `21909` (as Long)
+   - Purpose: Unique transaction identifier
+   - Validation: No explicit validation (assumes valid Long)
+
+2. Request Parameter - systemOrigin:
+   - Annotation: `@RequestParam("systemOrigin")`
+   - Type: `String`
+   - Required: Yes (no `required = false`)
+   - Extraction: Spring extracts from query string
+   - Example: `?systemOrigin=MCAP`
+   - Valid values: "MCAP" or "MACE"
+   - Validation: Custom validation via `SystemOriginEnum.fromCode()`
+
+3. Request Parameter - originMemberCode:
+   - Annotation: `@RequestParam("originMemberCode")`
+   - Validation: `@Size(max = 50, message = "originMemberCode must not exceed 50 characters")`
+   - Type: `String`
+   - Required: Yes (no `required = false`)
+   - Extraction: Spring extracts from query string
+   - Example: `?originMemberCode=2621761`
+   - Purpose: Member code for the transaction
+   - Validation: Maximum length 50 characters
+
+4. URL Construction Example:
+   - Full URL: `/loa-service/transaction/historyDetails/21909?systemOrigin=MCAP&originMemberCode=2621761`
+   - Path: `/transaction/historyDetails/21909`
+   - Query String: `?systemOrigin=MCAP&originMemberCode=2621761`
+
+5. Parameter Passing to Feign Client:
+   - Path variable: `id` passed as path variable
+   - Query parameters: `systemOrigin` and `originMemberCode` passed as query parameters
+   - Feign client constructs URL: `/mcap/mace-medgo/service/transaction/v2/21909?systemOrigin=MCAP&originMemberCode=2621761`
+
+6. Validation Execution Order:
+   - Path variable extraction (Spring automatic)
+   - Request parameter extraction (Spring automatic)
+   - `originMemberCode` size validation (Bean Validation)
+   - `systemOrigin` enum validation (Custom validation)
+   - If any validation fails: Returns error, method not executed
+
+CLASSES AND METHODS INVOLVED:
+- `@PathVariable` - Spring annotation for path variables
+- `@RequestParam` - Spring annotation for query parameters
+- `@Size` - Bean Validation annotation
+- Spring parameter extraction framework
+
+OUTPUT: Detailed explanation of path variable extraction, request parameter handling, validation rules, and URL construction.
+
+---
+
+**OUTPUT:** Complete explanation of LOA history details API including controller, Feign client, system origin validation, and parameter handling layers.
+

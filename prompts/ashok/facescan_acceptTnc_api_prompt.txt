@@ -1,0 +1,87 @@
+API:-/faceScan-service/api/v1/faceScan/acceptTnc-->create api based on this prompt
+
+Entity:-
+- Create a class named `FaceScanSessionModel` mapped to the `MEDGO_FACE_SCAN_SESSION` table.
+- The class should extend `BaseEntity` to inherit common auditing fields and primary key handling.
+- Annotate the class with `@Entity` and `@Table(name = "MEDGO_FACE_SCAN_SESSION")`.
+- Include the following fields with proper JPA annotations:
+    - `fedId` of type `String`, annotated with `@Column(name = "FED_ID", nullable = false, unique = true)`.
+    - `memberCode` of type `String`, annotated with `@Column(name = "MEMBER_CODE")`.
+    - `sessionId` of type `String`, annotated with `@Column(name = "SESSION_ID")`.
+    - `consent` of type `boolean`, annotated with `@Column(name = "CONSENT")`.
+    - `creationTime` of type `LocalDateTime`, annotated with `@Column(name = "CREATED_TIME")`.
+    - `age` of type `Integer`, annotated with `@Column(name = "AGE")`.
+    - `memberName` of type `String`, annotated with `@Column(name = "MEMBER_NAME")`.
+    - `gender` of type `String`, annotated with `@Column(name = "GENDER")`.
+    - `weight` of type `Double`, annotated with `@Column(name = "WEIGHT")`.
+    - `height` of type `Double`, annotated with `@Column(name = "HEIGHT")`.
+    - `isSmoker` of type `String`, annotated with `@Column(name = "IS_SMOKER")`.
+    - `isDiabetic` of type `String`, annotated with `@Column(name = "IS_DIABETIC")`.
+    - `bpMedication` of type `String`, annotated with `@Column(name = "BP_MEDICATION")`.
+    - `sessionEndTime` of type `LocalDateTime`, annotated with `@Column(name = "SESSION_END_TIME")`.
+    - `status` of type `String`, annotated with `@Column(name = "STATUS")`.
+- Include a constructor that accepts `fedId` and `memberCode`.
+- Use Lombok annotations `@Data`, `@NoArgsConstructor`, `@ToString` for boilerplate reduction.
+- Ensure all fields and inherited properties are correctly mapped to the database columns.
+
+Contoller:-
+Create a Spring Boot controller method for handling TnC acceptance. 
+The method should:
+- Be a POST endpoint at "/acceptTnc"
+- Be annotated with @PostMapping("/acceptTnc")
+- Use @EncryptResponse to encrypt the response
+- Accept a request body of type FaceScanTncRequest, annotated with @Valid and @DecryptBody(FaceScanTncRequest.class)
+- Call the service method faceScanService.acceptTncAndInitiateSession(request)
+- Return the result as CommonResponse
+Keep the method signature and annotations exactly as:
+
+Request:-
+- Create a request class named `FaceScanTncRequest` in the request package.
+- Annotate the class with Lombok annotations `@Data` and `@ToString`.
+- Extend the base class `BaseDto`.
+- Include the following fields with validation annotations:
+    - `fedId` of type `String`, annotated with `@NotBlank(message = "FED ID is required")`
+    - `consent` of type `boolean`, annotated with `@NotNull(message = "consent is required")`
+    - `memberName` of type `String`
+    - `age` of type `Integer`
+    - `gender` of type `String`
+    - `weight` of type `Double`
+    - `height` of type `Double`
+    - `isSmoker` of type `String`
+    - `isDiabetic` of type `String`
+    - `bpMedication` of type `String`
+- The class should be used to receive and validate input data for face scan TnC acceptance.
+
+Service Interface:
+- Create a Java interface named `FaceScanService`.
+- Include a method named `acceptTncAndInitiateSession` that:
+    - Accepts a single parameter `request` of type `FaceScanTncRequest`
+    - Returns a `CommonResponse`
+- The interface will be used to define face scan TnC acceptance and session initiation functionality.
+
+Serviceimpl:- create Impl package in package create FaceScanServiceImpl and implementation will be done in FaceScanServiceImpl class.  
+"Give me the full implementation of the acceptTncAndInitiateSession method in FaceScanServiceImpl. The method should take a FaceScanTncRequest as input and return a CommonResponse. It should:
+
+1. Log that TNC acceptance is being processed for the given fedId.
+2. Validate that fedId is not null or empty. If invalid, log an error and return CommonResponse.error with ErrorResponse(400, FED_ID_NULL_OR_EMPTY).
+3. Check if consent is false. If so, log a warning and return CommonResponse.error with ErrorResponse(400, TNC_NOT_ACCEPTED).
+4. Find the existing FaceScanSessionModel by fedId using sessionRepository.findByFedId. If not found, log an error and return CommonResponse.error with ErrorResponse(404, SESSION_NOT_FOUND_FOR_FED_ID).
+5. Extract memberCode and id from the existing session.
+6. Generate a new sessionId (UUID) and create a new FaceScanSessionModel.
+7. Set id, fedId, sessionId, status as 'STARTED', creationTime as current time, consent, and memberCode.
+8. Copy optional fields from the request to the session using a helper method setOptionalSessionFields.
+9. Save the new session in sessionRepository.
+10. Log success and return CommonResponse.success with the saved session.
+11. Catch DataAccessException and return CommonResponse.error with ErrorResponse(500, DATABASE_ERROR).
+12. Catch any other Exception and return CommonResponse.error with ErrorResponse(500, UNEXPECTED_ERROR).
+Include proper logging at all steps."
+
+Repository:-
+repository: create a repository interface named FaceScanSessionRepository. The repository should be implemented using Spring Data JPA.
+"Give me a Spring Data JPA repository interface for FaceScanSessionModel that extends JpaRepository<FaceScanSessionModel, Long>. Include a method named findByFedId that takes a String fedId as a parameter and returns an Optional<FaceScanSessionModel>."
+
+
+
+
+
+

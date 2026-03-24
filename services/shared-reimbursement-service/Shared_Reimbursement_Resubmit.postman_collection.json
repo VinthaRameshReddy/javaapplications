@@ -1,0 +1,275 @@
+{
+	"info": {
+		"_postman_id": "shared-reimbursement-resubmit-collection",
+		"name": "Shared Reimbursement Service - Resubmit Endpoint",
+		"description": "Postman collection for testing the resubmit reimbursement endpoint locally.\n\n**Prerequisites:**\n1. SQL Server must be running on localhost:1433\n2. Databases 'medigo' and 'ReimDB' must exist\n3. Service must be running on port 10092\n4. A valid `controlCode` from an existing reimbursement request is required\n\n**Quick Setup:**\nRun SQL Server using Docker:\n```bash\ndocker-compose -f docker-compose.sqlserver.yml up -d\n```\n\n**Resubmit vs Submit:**\n- Resubmit requires `controlCode` (from a prior submission)\n- Optional: `documentIdsToRemove` to remove existing documents\n- Optional: `newDocuments` (metadata; actual files go in form-data)\n- Same document parts as submit: serviceInvoice, itemizedBreakdown, medcert, etc.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Resubmit Reimbursement - Inpatient",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "request",
+							"type": "text",
+							"value": "{\n  \"controlCode\": \"REIM-2024-001234\",\n  \"memberCode\": \"M123456789\",\n  \"patientName\": \"John Doe\",\n  \"serviceType\": \"Inpatient\",\n  \"natureOfClaim\": \"Surgical\",\n  \"hospitalClinicName\": \"Sample Hospital\",\n  \"hospitalClinicAddress\": \"123 Main St, City\",\n  \"hospitalClinicPhone\": \"+63-123-456-7890\",\n  \"requestingDoctor\": \"Dr. Jane Smith\",\n  \"confinementDate\": \"2024-01-15\",\n  \"dischargeDate\": \"2024-01-20\",\n  \"dateOfTreatment\": \"2024-01-15\",\n  \"totalClaimAmount\": 50000.00,\n  \"disbursementMethod\": \"Bank Transfer\",\n  \"bankName\": \"Sample Bank\",\n  \"bankBranch\": \"Main Branch\",\n  \"fullAccountName\": \"John Doe\",\n  \"bankAccountNumber\": \"1234567890\",\n  \"documentIdsToRemove\": [],\n  \"newDocuments\": []\n}"
+						},
+						{
+							"key": "serviceInvoice",
+							"type": "file",
+							"src": [],
+							"description": "Service Invoice document(s)"
+						},
+						{
+							"key": "itemizedBreakdown",
+							"type": "file",
+							"src": [],
+							"description": "Itemized Breakdown document(s)"
+						},
+						{
+							"key": "medcert",
+							"type": "file",
+							"src": [],
+							"description": "Medical Certificate document(s)"
+						},
+						{
+							"key": "operativeTechnique",
+							"type": "file",
+							"src": [],
+							"description": "Operative Technique document(s)"
+						},
+						{
+							"key": "hospitalStatement",
+							"type": "file",
+							"src": [],
+							"description": "Hospital Statement document(s)"
+						},
+						{
+							"key": "certificateOfLiveBirth",
+							"type": "file",
+							"src": [],
+							"description": "Certificate of Live Birth document(s)"
+						},
+						{
+							"key": "liveBirth",
+							"type": "file",
+							"src": [],
+							"description": "Live Birth document(s)"
+						},
+						{
+							"key": "doctorPrescription",
+							"type": "file",
+							"src": [],
+							"description": "Doctor Prescription document(s)"
+						},
+						{
+							"key": "irDocument",
+							"type": "file",
+							"src": [],
+							"description": "IR Document(s)"
+						},
+						{
+							"key": "irDocumentAccredited",
+							"type": "file",
+							"src": [],
+							"description": "IR Document Accredited(s)"
+						},
+						{
+							"key": "bankDocuments",
+							"type": "file",
+							"src": [],
+							"description": "Bank Documents (single file only)"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/reimbursement/v1/resubmit",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"reimbursement",
+						"v1",
+						"resubmit"
+					]
+				},
+				"description": "Resubmit an existing Inpatient reimbursement. **controlCode** is required. Use confinementDate and dischargeDate for Inpatient."
+			},
+			"response": []
+		},
+		{
+			"name": "Resubmit Reimbursement - Outpatient",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "request",
+							"type": "text",
+							"value": "{\n  \"controlCode\": \"REIM-2024-005678\",\n  \"memberCode\": \"M123456789\",\n  \"patientName\": \"Jane Doe\",\n  \"serviceType\": \"Outpatient\",\n  \"natureOfClaim\": \"Consultation\",\n  \"hospitalClinicName\": \"Sample Clinic\",\n  \"hospitalClinicAddress\": \"456 Health Ave, City\",\n  \"hospitalClinicPhone\": \"+63-987-654-3210\",\n  \"requestingDoctor\": \"Dr. John Smith\",\n  \"availmentDate\": \"2024-01-25\",\n  \"dateOfTreatment\": \"2024-01-25\",\n  \"totalClaimAmount\": 5000.00,\n  \"disbursementMethod\": \"Bank Transfer\",\n  \"bankName\": \"Sample Bank\",\n  \"bankBranch\": \"Main Branch\",\n  \"fullAccountName\": \"Jane Doe\",\n  \"bankAccountNumber\": \"0987654321\",\n  \"documentIdsToRemove\": [],\n  \"newDocuments\": []\n}"
+						},
+						{
+							"key": "serviceInvoice",
+							"type": "file",
+							"src": [],
+							"description": "Service Invoice document(s)"
+						},
+						{
+							"key": "itemizedBreakdown",
+							"type": "file",
+							"src": [],
+							"description": "Itemized Breakdown document(s)"
+						},
+						{
+							"key": "medcert",
+							"type": "file",
+							"src": [],
+							"description": "Medical Certificate document(s)"
+						},
+						{
+							"key": "operativeTechnique",
+							"type": "file",
+							"src": [],
+							"description": "Operative Technique document(s)"
+						},
+						{
+							"key": "hospitalStatement",
+							"type": "file",
+							"src": [],
+							"description": "Hospital Statement document(s)"
+						},
+						{
+							"key": "certificateOfLiveBirth",
+							"type": "file",
+							"src": [],
+							"description": "Certificate of Live Birth document(s)"
+						},
+						{
+							"key": "liveBirth",
+							"type": "file",
+							"src": [],
+							"description": "Live Birth document(s)"
+						},
+						{
+							"key": "doctorPrescription",
+							"type": "file",
+							"src": [],
+							"description": "Doctor Prescription document(s)"
+						},
+						{
+							"key": "irDocument",
+							"type": "file",
+							"src": [],
+							"description": "IR Document(s)"
+						},
+						{
+							"key": "irDocumentAccredited",
+							"type": "file",
+							"src": [],
+							"description": "IR Document Accredited(s)"
+						},
+						{
+							"key": "bankDocuments",
+							"type": "file",
+							"src": [],
+							"description": "Bank Documents (single file only)"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/reimbursement/v1/resubmit",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"reimbursement",
+						"v1",
+						"resubmit"
+					]
+				},
+				"description": "Resubmit an existing Outpatient reimbursement. **controlCode** is required. Use availmentDate for Outpatient."
+			},
+			"response": []
+		},
+		{
+			"name": "Resubmit Reimbursement - With documentIdsToRemove",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "request",
+							"type": "text",
+							"value": "{\n  \"controlCode\": \"REIM-2024-001234\",\n  \"memberCode\": \"M123456789\",\n  \"patientName\": \"John Doe\",\n  \"serviceType\": \"Inpatient\",\n  \"natureOfClaim\": \"Surgical\",\n  \"hospitalClinicName\": \"Sample Hospital\",\n  \"hospitalClinicAddress\": \"123 Main St, City\",\n  \"hospitalClinicPhone\": \"+63-123-456-7890\",\n  \"requestingDoctor\": \"Dr. Jane Smith\",\n  \"confinementDate\": \"2024-01-15\",\n  \"dischargeDate\": \"2024-01-20\",\n  \"dateOfTreatment\": \"2024-01-15\",\n  \"totalClaimAmount\": 50000.00,\n  \"disbursementMethod\": \"Bank Transfer\",\n  \"bankName\": \"Sample Bank\",\n  \"bankBranch\": \"Main Branch\",\n  \"fullAccountName\": \"John Doe\",\n  \"bankAccountNumber\": \"1234567890\",\n  \"documentIdsToRemove\": [101, 102],\n  \"newDocuments\": []\n}"
+						},
+						{
+							"key": "serviceInvoice",
+							"type": "file",
+							"src": [],
+							"description": "Replace removed docs with new Service Invoice(s)"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/reimbursement/v1/resubmit",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"reimbursement",
+						"v1",
+						"resubmit"
+					]
+				},
+				"description": "Resubmit and remove existing documents by ID. Set `documentIdsToRemove` to the IDs of documents to delete. Add new files in form-data as needed."
+			},
+			"response": []
+		},
+		{
+			"name": "Resubmit Reimbursement - Minimal (No Files)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "request",
+							"type": "text",
+							"value": "{\n  \"controlCode\": \"REIM-2024-001234\",\n  \"memberCode\": \"M123456789\",\n  \"patientName\": \"Test Patient\",\n  \"serviceType\": \"Outpatient\",\n  \"natureOfClaim\": \"Consultation\",\n  \"hospitalClinicName\": \"Test Clinic\",\n  \"hospitalClinicAddress\": \"Test Address\",\n  \"hospitalClinicPhone\": \"+63-123-456-7890\",\n  \"requestingDoctor\": \"Dr. Test\",\n  \"availmentDate\": \"2024-01-25\",\n  \"dateOfTreatment\": \"2024-01-25\",\n  \"totalClaimAmount\": 1000.00,\n  \"disbursementMethod\": \"Bank Transfer\",\n  \"bankName\": \"Test Bank\",\n  \"bankBranch\": \"Test Branch\",\n  \"fullAccountName\": \"Test Account\",\n  \"bankAccountNumber\": \"1234567890\",\n  \"documentIdsToRemove\": [],\n  \"newDocuments\": []\n}"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/reimbursement/v1/resubmit",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"reimbursement",
+						"v1",
+						"resubmit"
+					]
+				},
+				"description": "Resubmit with request JSON only (no file attachments). Replace **controlCode** with a real control code from an existing reimbursement."
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:10092",
+			"type": "string"
+		}
+	]
+}

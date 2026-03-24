@@ -1,0 +1,43 @@
+version: '3.8'
+networks:
+  loaservicenwk:
+    name: app
+    driver: bridge
+volumes:
+  postgres_data:
+    driver: local
+services:
+  loa-service:
+    image: com.medgo/loa-service:0.1.0
+    container_name: loa-service
+    ports:
+      - "14014:14014"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/loaservicedb
+      SPRING_DATASOURCE_PASSWORD: WuPyzeFoCUyf
+    networks:
+      - loaservicenwk
+    depends_on:
+      - db
+    
+  db:
+    image: postgres:12.6
+    container_name: loaservicedb
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - loaservicenwk
+    ports:
+      - "16624:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: WuPyzeFoCUyf
+      POSTGRES_DB: loaservicedb
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 1m
+      timeout: 10s
+      retries: 2
+  

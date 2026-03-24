@@ -1,0 +1,37 @@
+================================================================================
+BASIC AUTHENTICATION + API KEY - PROMPTS FOR SHARED SERVICES
+================================================================================
+Used by: shared-provider-service, shared-membership-service (and similar internal shared APIs)
+Pattern: HTTP Basic Auth + custom API key header; secrets from Azure Key Vault
+================================================================================
+
+--- Requirement ---
+Implement Spring Security so that:
+1. All requests (except health) require HTTP Basic Authentication.
+2. After Basic Auth, a custom API key must be present in a configurable header (e.g. Ocp-Apim-Subscription-Key).
+3. Health endpoints (/health, /actuator/health) are permitted without authentication.
+4. Secrets (Basic username, bcrypt password, API key header name, API key value) are loaded from Azure Key Vault at startup via AzureKeyVaultService.
+
+--- Security Filter Chain ---
+- Disable CSRF. Session creation: STATELESS.
+- Use httpBasic(Customizer.withDefaults()).
+- authorizeHttpRequests: permit /health and /actuator/health; anyRequest().authenticated().
+- Add a OncePerRequestFilter (API key filter) AFTER BasicAuthenticationFilter so that:
+  - For /health and /actuator/health, skip the filter (chain.doFilter).
+  - For all other requests, read the API key from request.getHeader(apiKeyHeader).
+  - If header is null/blank or value does not match the configured key, respond with status 401, Content-Type application/json, body: {"error":"invalid_or_missing_api_key"} and do not call chain.doFilter.
+  - Otherwise call chain.doFilter(request, response).
+
+--- UserDetailsService ---
+- Return a single UserDetails (e.g. User.withUsername(basicUser).password(basicPasswordBcrypt).roles("CLIENT").build()) where basicUser and basicPasswordBcrypt come from Key Vault (app-security-user, app-security-password-bcrypt). Use PasswordEncoder that supports bcrypt (e.g. PasswordEncoderFactories.createDelegatingPasswordEncoder()).
+
+--- Feign Callers (Gateway services calling shared) ---
+When a gateway (e.g. provider-service, membership-service) calls the shared service via Feign:
+- Add BasicAuthRequestInterceptor with username and password (from Key Vault or application properties: e.g. shared.provider.basic.user, shared.provider.basic.password or shared.membership.basic.user, shared.membership.basic.password).
+- Add RequestInterceptor that sets the API key header (e.g. Ocp-Apim-Subscription-Key) with value from Key Vault or property (e.g. shared.provider.apim.key / shared.membership.apim.key).
+- Do NOT forward the end-user’s Authorization (Bearer JWT) to the shared service; only the service-to-service Basic + API key.
+
+--- Prompt for implementing from scratch ---
+"Create a Spring Boot Security configuration for an internal shared service that uses (1) HTTP Basic Authentication and (2) a custom API key header. Load four secrets from Azure Key Vault via AzureKeyVaultService in @PostConstruct: app-security-api-key-header, app-security-api-key, app-security-user, app-security-password-bcrypt. Expose a SecurityFilterChain that disables CSRF, uses stateless session, enables httpBasic, permits only /health and /actuator/health, and requires authentication for all other paths. Add a custom OncePerRequestFilter after BasicAuthenticationFilter that, for non-health paths, checks the request header named by app-security-api-key-header; if missing or not equal to app-security-api-key, return 401 with body {\"error\":\"invalid_or_missing_api_key\"}; otherwise proceed. Provide a UserDetailsService that returns one user with username and password from Key Vault (password stored as bcrypt) and role CLIENT. Use PasswordEncoderFactories.createDelegatingPasswordEncoder()."
+
+================================================================================

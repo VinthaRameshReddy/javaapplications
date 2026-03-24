@@ -1,0 +1,12 @@
+rootProject.name = 'common-objects'
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files("../../gradle/libs.versions.toml"))
+        }
+    }
+}
+
+includeBuild("../logging-utils")
+

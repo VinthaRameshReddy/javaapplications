@@ -1,0 +1,15 @@
+rootProject.name = '{{ cookiecutter.service_slug }}'
+
+includeBuild '../../shared/common-objects'
+includeBuild '../../shared/logging-utils'
+includeBuild '../../shared/authorization-utils'
+includeBuild '../../shared/archunit-tests'
+
+enableFeaturePreview("VERSION_CATALOGS")
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files("../../gradle/libs.versions.toml"))
+        }
+    }
+}

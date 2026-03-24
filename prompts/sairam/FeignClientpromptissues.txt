@@ -1,0 +1,15 @@
+
+In this feign client we can use @requestbody are we can use @Decreptbody for encrption and decrption
+@FeignClient(
+        name = "member-service",
+        url = "${feign.member-service.url}",
+        configuration = FeignConfig.class
+)
+public interface MemberServiceClient {
+
+    @GetMapping("/api/v1/member/{memberCode}")
+    MemberResponse getMemberByCode(@PathVariable("memberCode") String memberCode);
+
+    @PostMapping("/api/v1/member/validate")
+    CommonResponse validateMember(@RequestBody ValidateMemberRequest request);
+}

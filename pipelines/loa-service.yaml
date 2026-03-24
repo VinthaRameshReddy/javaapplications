@@ -1,0 +1,49 @@
+trigger: none
+pr: none
+
+variables:
+  servicePath: 'services/loa-service'
+  chartPath: 'services/loa-service/loa-chart'
+  dockerRegistry: 'MedGO2.0ACR_SVC_ConnectionNew'
+  imageName: 'loa-service-stg'
+  #dockerRegistryEndpoint: 'acrmpiseaashared01'
+  imagePullSecrets: 'medgopullsecret'
+  aksCluster: 'aks-mpi-sea-a-med2g01'
+  aksResourceGroup: 'mc-aks-rg-sea-03'
+  azureSubscription: 'medgo2_svc_connection'
+  acrName: 'acrmpiseaashared01.azurecr.io'
+  propsfile: 'loa'
+
+stages:
+# ------------------------------
+#  Build / Scan Stage
+# ------------------------------
+- stage: Build
+  displayName: "Image - Build, Scan and Push"
+  jobs:
+  - template: templates/build.yaml
+    parameters:
+      servicePath: $(servicePath)
+      dockerRegistry: $(dockerRegistry)
+      imageName: $(imageName)
+      acrName: $(acrName)
+
+# ------------------------------
+#  deploy Stage
+# ------------------------------
+- stage: Deploy
+  displayName: "Deploy to AKS"
+  dependsOn: Build
+  jobs:
+  - template: templates/deploy.yaml
+    parameters:
+      #dockerRegistryEndpoint: $(dockerRegistryEndpoint)
+      dockerRegistry: $(dockerRegistry)
+      imagePullSecrets: $(imagePullSecrets)
+      imageName: $(imageName)
+      #k8sConnection: $(k8sConnection)
+      aksCluster: $(aksCluster)
+      azureSubscription: $(azureSubscription)
+      servicePath: $(servicePath)
+      propsfile: $(propsfile)
+      chartPath: $(chartPath)

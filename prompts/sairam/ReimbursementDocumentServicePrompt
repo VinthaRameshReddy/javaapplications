@@ -1,0 +1,81 @@
+Create a service class  ReimbursementDocumentService.
+
+This service is responsible for building a list of DocumentUploadRequest  from uploaded MultipartFile inputs and validating required documents for reimbursement claims.
+
+Use:@Service ,@Slf4j,MultipartFile
+
+DocumentUploadRequest with builder pattern
+
+1. Build document upload list
+
+Create a method buildDocumentUploads(...) that accepts:
+
+serviceType (Inpatient / Outpatient)
+
+natureOfClaim
+
+Multiple List<MultipartFile> parameters for different document sections
+
+Skip null or empty files
+
+Add documents to a List<DocumentUploadRequest> with correct documentType values
+
+Handle common documents for both Inpatient and Outpatient
+
+Handle Inpatient-specific and Outpatient-specific documents based on natureOfClaim
+
+Add Operative Technique only for:
+
+Inpatient → Surgical
+
+Outpatient → Procedure / Outpatient Procedure
+
+Do NOT add Operative Technique for outpatient laboratory/diagnostics
+
+Add Hospital Statement of Account conditionally for emergency confinement/confinement
+
+Bank Documents should allow only one file
+
+2. IR document handling
+
+IR document type should change based on service type and nature of claim
+
+Create helper methods:
+
+getIRDocumentType(serviceType, natureOfClaim)
+
+getIRAccreditedDocumentType(serviceType, natureOfClaim)
+
+Log IR document additions using log.debug
+
+3. Required document validation
+
+Create method validateRequiredDocuments(serviceType, natureOfClaim, uploads)
+
+Determine required documents dynamically based on service type and claim
+
+Compare required documents with uploaded documents
+
+Special handling for IR documents (any IR document satisfies IR requirement)
+
+Throw IllegalArgumentException with a clear message if required documents are missing
+
+4. Required document rules
+
+Create helper method getRequiredDocs(serviceType, natureOfClaim)
+
+Standard required for all:
+
+Service Invoice / Official Receipt
+
+Itemized Breakdown of Charges
+
+Medcert / Diagnosis
+
+Bank Documents
+
+Add additional required documents based on:
+
+Inpatient vs Outpatient
+
+Nature of claim (maternity, surgical, consultation, dental, procedure, emergency confinement, laboratory,

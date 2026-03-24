@@ -1,0 +1,175 @@
+Title: Logout endpoint - Detailed API prompt / 2026-02-13 --> reformatted from original
+
+Purpose
+Authenticate and invalidate a user's JWT on logout. Describe controller responsibilities, service behavior, validation, error codes, security considerations, and developer testing examples.
+
+---
+
+2.1 Controller Layer -
+
+ROLE: You are a Java Spring Boot backend developer describing the controller layer for the `/logout` API.
+
+TASK: Explain in detail what happens in the controller layer for the `POST /api/v1/auth/logout` endpoint.
+
+CONTEXT:
+- Controller class: `AuthController` (or `LogoutController` for separation)
+- Endpoint: `POST /api/v1/auth/logout`
+- Request DTO: `LogoutRequest` with `userId` field (deviceId or email/mobile depending on flow)
+- Uses JWT bearer token from `Authorization` header
+- Response type: `ResponseEntity<CommonResponse>` and responses are encrypted by `@EncryptResponse`
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP:
+
+1. HTTP Request Reception:
+   - Spring receives HTTP POST request at `/api/v1/auth/logout`.
+   - Request contains `Authorization: Bearer <token>` header and encrypted JSON body (or header `userId` in some clients).
+   - Request is dispatched to `logout` controller method.
+
+2. Request Decryption & Validation:
+   - `@DecryptBody(LogoutRequest.class)` (or filter) decrypts the body into `LogoutRequest`.
+   - `@Valid` triggers validation: `userId` annotated with `@NotBlank`.
+   - If validation fails, controller returns `ResponseEntity.badRequest()` wrapped in `CommonResponse.error(...)`.
+
+3. Token Extraction & Basic Checks:
+   - Controller extracts Bearer token from `Authorization` header.
+   - If token is missing, returns `ResponseEntity.status(401).body(CommonResponse.error(...))`.
+   - Logs minimal context: `logger.info("Logout request: userId={}", request.userId());` (do NOT log token).
+
+4. Service Delegation:
+   - Calls `CommonResponse response = logoutService.logout(request, token);`
+   - Controller remains thin: delegates all business logic and token invalidation to `LogoutService`.
+
+5. Response Handling:
+   - Receives `CommonResponse` from service.
+   - Returns `ResponseEntity.ok().body(response);` with `@EncryptResponse` annotation ensuring response encryption.
+
+CLASSES AND METHODS INVOLVED:
+- `AuthController` / `LogoutController`
+- `LogoutRequest` (DTO)
+- `LogoutService` / `LogoutServiceImpl`
+- `JwtTokenUtil` - token parsing utilities
+- `JwtRequestFilter` - request filter that normally authenticates requests
+- `CommonResponse`, `ErrorResponse`
+- `ResponseEntity`, `HttpHeaders`
+
+METHOD SIGNATURE:
+```java
+@PostMapping("/logout")
+@EncryptResponse
+public ResponseEntity<CommonResponse> logout(
+    @Valid @DecryptBody(LogoutRequest.class) LogoutRequest request,
+    @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+)
+```
+
+OUTPUT: Controller layer responsibilities, header extraction, validation, logging and delegation to service for token invalidation.
+
+---
+
+2.2 Service Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot service-layer developer explaining logout and token invalidation logic.
+
+TASK: Explain in detail what happens in the `logout` method of `LogoutService`.
+
+CONTEXT:
+- Service interface: `LogoutService`
+- Implementation: `LogoutServiceImpl`
+- Dependencies:
+  - `JwtTokenUtil jwtTokenUtil` - parse token, access token store
+  - `TokenStore` (in-memory or Redis) - stores active tokens for invalidation checks
+  - `UserRepository` (optional) - to validate user existence if needed
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP:
+
+1. Method Entry:
+   - Signature: `public CommonResponse logout(LogoutRequest request, String bearerToken)`
+   - Logs entry: `LOGGER.info("Processing logout for userId={}", request.userId());`
+
+2. Token Presence & Format:
+   - Verify `bearerToken` is present and starts with `Bearer `.
+   - If missing or malformed: return `CommonResponse.error(HttpStatus.UNAUTHORIZED.value(), "Token missing")`.
+
+3. Parse Token Subject:
+   - Extract token string and call `String tokenUsername = jwtTokenUtil.getUsernameFromTokenClaim(token);`
+   - If extraction fails: return 401 with `INVALID_JWT`.
+
+4. Validate Token Subject vs Request userId:
+   - If `!tokenUsername.equals(request.userId())` then return 401 `INVALID_TOKEN_USER`.
+   - This prevents logging out a different subject than the token's owner.
+
+5. Check Token Exists in Token Store:
+   - If `!jwtTokenUtil.tokenStoreContains(token)` then return 401 `TOKEN_NOT_FOUND`.
+   - Token store is the single source of truth for token validity in current design.
+
+6. Invalidate Token:
+   - Remove token from tokenStore: `jwtTokenUtil.invalidateToken(token)` (or remove from in-memory set / delete Redis key).
+   - Log success: `LOGGER.info("Token invalidated for userId={}", request.userId());`
+
+7. Return Success Response:
+   - `return CommonResponse.success(Map.of("message", "User logged out successfully"));`
+
+8. Error Handling:
+   - Catch unexpected exceptions, log error, and return `CommonResponse.error(HttpStatus.INTERNAL_SERVER_ERROR.value(), "LOGOUT_FAILED")`.
+   - Ensure token is not left in inconsistent state; on failure, document retry/compensation behavior.
+
+SECURITY & OPERATIONS NOTES:
+- For multi-instance deployments, switch tokenStore to shared Redis blacklist with TTL equal to token expiry.
+- Consider storing token metadata (expiry, deviceId) for audit and forced logout by admin.
+- Ensure JwtRequestFilter checks tokenStore on each request to enforce invalidation.
+
+CLASSES AND METHODS INVOLVED:
+- `LogoutService`, `LogoutServiceImpl`
+- `JwtTokenUtil` (getUsernameFromTokenClaim, tokenStoreContains, invalidateToken)
+- `TokenStore` (in-memory Set or Redis-backed)
+- `CommonResponse`, `ErrorResponse`
+
+OUTPUT: Detailed service layer flow for token validation, subject checks, token invalidation, and responses.
+
+---
+
+2.3 DTO Layer -
+
+ROLE: You are a backend developer explaining the `LogoutRequest` DTO.
+
+TASK: Explain `LogoutRequest` structure and validation.
+
+CONTEXT:
+- DTO class: `LogoutRequest`
+- Package: `com.medgo.auth.domain.request`
+- Type: Java record or class
+- Fields: `userId` (String) — may be email, mobile, or deviceId depending on clients
+
+WHAT HAPPENS:
+
+1. Record/Class Definition:
+   - Example: `public record LogoutRequest(String userId) {}`
+   - Provides accessor `userId()` and immutable data holder semantics.
+
+2. Validation:
+   - `@NotBlank(message = "userId is required")`
+   - Optionally `@Size(max = 100)`
+   - If validation fails, controller returns 400 with validation messages.
+
+3. Deserialization:
+   - JSON `{"userId":"user@example.com"}` deserialized by Jackson into the record/class.
+
+OUTPUT: DTO contract, validation rules, and deserialization expectations.
+
+---
+
+Developer testing & Examples:
+- cURL:
+  curl -X POST "http://localhost:8080/api/v1/auth/logout" \
+    -H "Authorization: Bearer <token>" \
+    -H "Content-Type: application/json" \
+    -d '{"userId":"user@example.com"}'
+
+Notes / Follow-ups:
+- Add unit tests for `LogoutService`: missing token, subject mismatch, token not found, successful invalidation, exception path.
+- Update API docs and Postman collection to clarify that `userId` refers to token subject (email/mobile) and not deviceId unless specified.
+
+---
+
+End of formatted logout prompt.
+

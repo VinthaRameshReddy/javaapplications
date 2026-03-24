@@ -1,0 +1,113 @@
+Implement  submitReimbursement method springboot service class.
+
+Method signature:
+
+Override an interface method
+
+Annotated with @Transactional
+
+Returns ReimbursementSubmissionResponse
+
+Accepts:
+
+ReimbursementSubmissionRequest request
+
+List<DocumentUploadRequest> documentUploads
+
+High-level flow:
+
+Validate required documents using documentService.validateRequiredDocuments
+
+Validate bank account details if bank name and account number are provided
+
+Ignore any incoming control code and always generate:
+
+a new control code
+
+a new entry code
+
+Fetch member data from an external member service
+
+Fetch particulars code based on nature of claim
+
+Build and persist a ReimbursementRequestEntity
+
+Database handling:
+
+Save data in two databases:
+
+Reim DB (using a separate transaction with PROPAGATION_REQUIRES_NEW)
+
+Medigo DB (using JPA repository)
+
+For Reim DB:
+
+Call saveIpReceiving for Inpatient
+
+Call saveOpReceiving for Outpatient
+
+Track whether Reim DB save succeeded
+
+Commit or rollback Reim DB transaction manually using a transaction manager
+
+Throw a custom DualDatabaseTransactionException if any step fails
+
+Document upload handling:
+
+Loop through documentUploads
+
+Skip null or empty files
+
+Upload files using fileManagementServiceClient.uploadFile
+
+Build ReimbursementDocumentEntity from upload response
+
+Save all document entities in batch
+
+Build blob folder name using control code, patient name, and account name
+
+Post-save validation:
+
+Re-fetch the saved reimbursement request from the database
+
+Validate that the record exists and control code matches
+
+Fetch saved document records for response
+
+Response building:
+
+Build ReimbursementSubmissionResponse using saved entity data
+
+Map document entities to DocumentInfo
+
+Request context handling:
+
+Extract headers from HttpServletRequest:
+
+X-DEVICE-ID
+
+X-APPLICATION-ID
+
+Try to resolve user email from:
+
+userId header
+
+JWT token (Authorization header) by decoding payload
+
+Store device ID in request context if present
+
+Email notification:
+
+Send submission email notification after successful commit
+
+Prevent duplicate emails using a database deduplication update
+
+If deduplication fails, still send the email
+
+Logging & error handling:
+
+Add meaningful log.info, log.debug, log.warn, and log.error logs
+
+Ensure rollback happens correctly on failure
+
+Provide clear error messages for transaction failures

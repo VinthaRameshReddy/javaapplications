@@ -1,0 +1,79 @@
+/admin-action-audit/export API -03-01-2026-->create api based on this prompt
+
+AI Prompt Template – Controller Layer (POST-only)
+
+TASK:
+Generate a detailed controller-layer prompt for the `/admin-action-audit/export` endpoint following the standardized POST-only API template.
+
+CONTEXT:
+- Controller class: `UserActionLogController`
+- Endpoint: `POST /api/v1/logs/admin-action-audit/export`
+- Request DTO: `UserActionLogListRequest` with filters used for export
+- Flow: Controller → Service → Repository. Controller must be thin and delegate streaming to service.
+- Response type: `ResponseEntity<byte[]>` (CSV)
+
+REQUIREMENTS:
+- Use POST-only endpoint (`/admin-action-audit/export`).
+- Decrypt request with `@DecryptBody(UserActionLogListRequest.class)`.
+- Validate inputs with `@Valid`.
+- Enforce admin authorization (`@PreAuthorize("hasRole('ADMIN')")`).
+- Log `traceId` and export summary only: `traceId={} | method=exportAdminActionAudits | filters={}` (mask filter PII).
+- Delegate CSV generation and sanitization to `userActionLogService.exportAdminActionAudits(request)`.
+- Set headers: `Content-Type: text/csv`, `Content-Disposition: attachment; filename="admin_audits_<ts>.csv"`.
+
+OUTPUT FORMAT:
+- Prompt describing controller responsibilities and example method signature.
+
+METHOD SIGNATURE (reference):
+```java
+@PostMapping("/admin-action-audit/export")
+@PreAuthorize("hasRole('ADMIN')")
+public ResponseEntity<byte[]> exportAdminActionAudits(@Valid @DecryptBody(UserActionLogListRequest.class) UserActionLogListRequest request)
+```
+
+SHORT EXAMPLE SNIPPET:
+```java
+String traceId = RequestContext.getTraceId();
+log.info("traceId={} | method=exportAdminActionAudits | filters={}", traceId, maskFilters(request));
+return userActionLogService.exportAdminActionAudits(request);
+```
+
+NOTES:
+- Recommend streaming CSV and masking PII before writing rows.
+
+Layered Prompt Model (All Layers)
+
+1) Controller Layer
+ROLE: Senior Java Spring Boot developer.
+TASK: Generate `UserActionLogController.exportAdminActionAudits` POST endpoint.
+OUTPUT: Controller snippet and signature (see above).
+
+2) Service Layer
+ROLE: Service developer.
+TASK: Implement `userActionLogService.exportAdminActionAudits(UserActionLogListRequest)` with streaming.
+REQUIREMENTS: Sanitize PII, stream efficiently, return `ResponseEntity<byte[]>`.
+OUTPUT: Service skeleton and streaming guidance.
+
+3) Repository Layer
+ROLE: Persistence engineer.
+TASK: Provide efficient query or streaming API to fetch audit rows.
+OUTPUT: Repository method examples.
+
+4) DTO Layer
+ROLE: DTO author.
+TASK: Reuse `UserActionLogListRequest` and define `AuditExportRow`.
+OUTPUT: DTO examples.
+
+5) Utilities
+TASK: `CsvWriterUtil`, `MaskingUtil`.
+OUTPUT: Utility signatures.
+
+6) Tests
+TASK: Integration test verifying CSV headers, content, and masking.
+OUTPUT: Test skeletons.
+
+7) Docs
+TASK: Document CSV columns and sample CSV output.
+OUTPUT: Markdown example.
+
+

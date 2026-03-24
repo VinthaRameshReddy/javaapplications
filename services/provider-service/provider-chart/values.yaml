@@ -1,0 +1,41 @@
+replicaCount: 1
+
+name: provider
+fullname: provider-service
+
+image:
+  repository: acrmpiseaashared01.azurecr.io/provider-service-stg
+  tag: latest
+  pullPolicy: IfNotPresent
+  pullSecret: medgopullsecret
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 10110
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "1200Mi"
+  limits:
+    cpu: "500m"
+    memory: "2400Mi"
+
+env:
+  ##javaToolOptions: "-Xss16m"
+  name: "application-stg.properties"
+
+pvcName: medgo-logs-pvc
+
+hpa:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 3
+  memoryUtilization: 80
+
+# appProperties: |
+#   db.username=demouser
+#   db.password=demopass
+#   spring.profiles.active=dev
+

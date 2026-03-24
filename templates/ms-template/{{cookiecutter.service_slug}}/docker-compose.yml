@@ -1,0 +1,76 @@
+version: '3.8'
+networks:
+  {{ cookiecutter.service_package }}nwk:
+    name: app
+    driver: bridge
+{% if cookiecutter.with_db == "y" -%}
+volumes:
+  postgres_data:
+    driver: local
+{% endif -%}
+services:
+  {{ cookiecutter.service_slug }}:
+    image: com.{{cookiecutter.clientname}}/{{ cookiecutter.service_slug + ':' + cookiecutter.version}}
+    container_name: {{ cookiecutter.service_slug }}
+    ports:
+      - "{{ cookiecutter.service_port }}:{{ cookiecutter.service_port }}"
+    {% if cookiecutter.with_db == "y" -%}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/{{ cookiecutter.db_name }}
+      SPRING_DATASOURCE_PASSWORD: {{ cookiecutter.db_password }}
+    {% endif -%}
+    networks:
+      - {{ cookiecutter.service_package }}nwk
+    {% if cookiecutter.with_db == "y" -%}
+    depends_on:
+      - db
+    {% endif -%}
+  {% if cookiecutter.with_db == "y" %}
+  db:
+    image: postgres:12.6
+    container_name: {{ cookiecutter.service_package }}db
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - {{ cookiecutter.service_package }}nwk
+    ports:
+      - "{{ cookiecutter.db_port }}:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: {{ cookiecutter.db_password }}
+      POSTGRES_DB: {{ cookiecutter.db_name }}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 1m
+      timeout: 10s
+      retries: 2
+  {% endif -%}
+{% if cookiecutter.with_kafka_producer == "y"  or  cookiecutter.with_kafka_consumer == "y" -%}
+  zookeeper:
+      image: 'bitnami/zookeeper:latest'
+      ports:
+        - '2181:2181'
+      environment:
+        - ALLOW_ANONYMOUS_LOGIN=yes
+      networks:
+        - {{ cookiecutter.service_package }}nwk
+  kafka:
+      image: 'bitnami/kafka:latest'
+      ports:
+        - '9092:9092'
+        - '9093:9093'
+      environment:
+        - KAFKA_BROKER_ID=1
+        - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+        - ALLOW_PLAINTEXT_LISTENER=yes
+        - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
+        - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:9093
+        - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://kafka:9092,EXTERNAL://127.0.0.1:9093
+        - KAFKA_INTER_BROKER_LISTENER_NAME=CLIENT
+      depends_on:
+        - zookeeper
+      networks:
+        - {{ cookiecutter.service_package }}nwk
+{% endif -%}

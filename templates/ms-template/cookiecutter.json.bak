@@ -1,0 +1,19 @@
+{
+	"clientname" : "mybank",
+    "service_name" : "My Service",
+    "service_name_combined" : "{{  cookiecutter.service_name.title().replace(' ', '')  }}",
+    "service_slug": "{{  cookiecutter.service_name | slugify }}",
+    "service_package" :"{{  cookiecutter.service_name | slugify(separator='')  }}",
+    "with_db": "y",
+    "with_kafka_producer": "n",
+    "with_kafka_consumer": "n",
+    "db_name" : "{{ cookiecutter.service_name | slugify(separator='') + 'db' }}",
+    "db_password" : "{{ random_ascii_string(12) }}",
+    "version" : "0.1.0",
+    "service_short_description" : "This is a Spring Boot Microservice",
+    "entity" : "MyEntity",
+    "service_port" : "",
+    "db_port" : "",
+    "output_dir" : "",
+    "_extensions": ["cookiecutter.extensions.SlugifyExtension", "cookiecutter.extensions.RandomStringExtension"]
+}

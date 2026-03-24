@@ -1,0 +1,1 @@
+# member-service Definition Document

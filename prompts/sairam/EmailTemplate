@@ -1,0 +1,73 @@
+Create a Spring @Service class named ReimbursementNotificationService under package com.medgo.reimburse.service.
+
+This service is responsible for sending reimbursement submission email notifications to both the admin/reimbursement system and the end user.
+
+Functional requirements:
+
+Use OpenFeign (NotificationServiceClient) to call an external email notification service.
+
+Read admin email and email image path from application properties.
+
+Support HTML email content.
+
+Prevent duplicate emails for the same control code within a configurable time window (5 minutes).
+
+Ensure thread-safe idempotency using ConcurrentHashMap, synchronization, and a lock object.
+
+Email sending flow:
+
+Expose a public method sendControlCodeEmail(ReimbursementSubmissionResponse response, String deviceId, String applicationId, String userEmail).
+
+Validate control code before proceeding.
+
+Ensure only one email is sent per control code within the deduplication window.
+
+Send one email to the admin email address (including bank details).
+
+Send one email to the user email address (excluding bank details), if valid and different from admin email.
+
+Handle concurrent calls safely and avoid duplicate sends.
+
+Email content handling:
+
+Build rich HTML email templates.
+
+Attempt to load an image from src/main/resources using ClassPathResource.
+
+Convert the image to Base64 and embed it inline in the email body.
+
+If the image fails to load, fall back to a pure HTML email template.
+
+Display control code prominently in the email.
+
+Include bank account details only for admin emails.
+
+Escape all dynamic values to avoid HTML injection.
+
+Add a disclaimer and privacy link at the bottom of the email.
+
+Error handling & logging:
+
+Handle Feign errors, decode exceptions, and unexpected runtime exceptions gracefully.
+
+Log success, failures, retries, and skipped duplicate sends clearly.
+
+If email sending fails, remove the control code from the deduplication map to allow retry.
+
+Implementation details:
+
+Use Lombok annotations (@Slf4j, @RequiredArgsConstructor).
+
+Use @Value for configuration properties.
+
+Use helper methods for:
+
+Validating email addresses
+
+Building HTML email bodies (with and without images)
+
+Building bank details sections
+
+Loading images as Base64
+
+Determining image MIME type

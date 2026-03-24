@@ -1,0 +1,156 @@
+3. /biometric/storePasskeyHash API - Store Passkey Hash/09-12-2025-->create api based on this prompt
+
+Purpose
+Store the passkey hash (SHA256 hash of device-generated passkey) in the database for a user. This is called during initial biometric setup after user logs in with password/OTP.
+
+---
+
+3.1 Controller Layer - Detailed Explanation Prompt
+
+ROLE: You are a Java Spring Boot backend developer explaining controller layer implementation.
+
+TASK: Explain in detail what happens in the controller layer for the `/biometric/storePasskeyHash` API endpoint.
+
+CONTEXT:
+- Controller class: `AuthController`
+- Endpoint: `POST /api/v1/auth/biometric/storePasskeyHash`
+- Request DTO: `StorePasskeyHashRequest` with `email` and `passkeyHash` fields
+- Similar to challenge endpoint (no token extraction needed)
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Request Reception:
+   - Spring receives HTTP POST request at `/api/v1/auth/biometric/storePasskeyHash`
+   - Request body contains encrypted JSON
+
+2. Request Decryption:
+   - `@DecryptBody(StorePasskeyHashRequest.class)` decrypts request
+   - Converts to `StorePasskeyHashRequest` object
+
+3. Validation:
+   - `@Valid` validates:
+     - `email` - `@NotBlank`, `@Size(max=100)`
+     - `passkeyHash` - `@NotBlank`
+
+4. Logging:
+   - Logs: `logger.info("StorePasskeyHashRequest: email={}", request.email());`
+   - Doesn't log passkeyHash for security
+
+5. Service Call:
+   - Calls: `CommonResponse response = registrationService.storePasskeyHash(request);`
+   - Service stores passkey hash in database
+
+6. Response Logging:
+   - Logs: `logger.info("StorePasskeyHashResponse: {}", response);`
+
+7. Response Encryption:
+   - `@EncryptResponse` encrypts response before sending
+
+OUTPUT: Detailed explanation of controller layer execution (similar to challenge endpoint).
+
+---
+
+3.2 Service Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot service-layer developer explaining data persistence logic.
+
+TASK: Explain in detail what happens in the service layer for the `storePasskeyHash` method.
+
+CONTEXT:
+- Service class: `AuthServiceImpl`
+- Stores passkeyHash in `PASSKEY` database column
+- For MEMBER users: sets `biometricEnabled = true`
+- Sets `passkeyCreatedAt = LocalDateTime.now()` for auditing
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Method Entry:
+   - Method: `public CommonResponse storePasskeyHash(StorePasskeyHashRequest request)`
+   - Receives request with `email` and `passkeyHash`
+   - Logs: `LOGGER.info("Storing passkey hash for email: {}", request.email());`
+
+2. MEMBER User Lookup:
+   - Searches: `Optional<UserModel> memberUserOpt = userRepository.findByEmailOrMobile(request.email(), request.email());`
+   - If found: `if (memberUserOpt.isPresent())`
+
+3. MEMBER User - Passkey Storage:
+   - Gets user: `UserModel user = memberUserOpt.get();`
+   - Sets passkey: `user.setPasskey(request.passkeyHash());`
+   - Stores passkeyHash in `PASSKEY` column (TEXT type)
+   - Enables biometric: `user.setBiometricEnabled(true);`
+   - Sets `BIOMETRIC_ENABLED` column to `true`
+   - Sets timestamp: `user.setPasskeyCreatedAt(LocalDateTime.now());`
+   - Sets `PASSKEY_CREATED_AT` column to current timestamp
+   - Saves entity: `userRepository.save(user);`
+   - `save()` method:
+     - If entity has ID: performs UPDATE SQL
+     - If entity has no ID: performs INSERT SQL
+     - In this case: UPDATE (user already exists)
+     - SQL: `UPDATE MEDGO_USERS SET PASSKEY = ?, BIOMETRIC_ENABLED = ?, PASSKEY_CREATED_AT = ? WHERE id = ?`
+   - Logs: `LOGGER.info("Passkey hash stored for member user: {} at {}", request.email(), LocalDateTime.now());`
+   - Returns: `CommonResponse.success("Passkey hash stored successfully")`
+
+4. NON_MEMBER User Lookup:
+   - If MEMBER not found: `Optional<NonMemberUserModel> nonMemberUserOpt = nonMemberUserRepositry.findByEmailOrMobile(...)`
+   - If found: `if (nonMemberUserOpt.isPresent())`
+
+5. NON_MEMBER User - Passkey Storage:
+   - Gets user: `NonMemberUserModel user = nonMemberUserOpt.get();`
+   - Sets passkey: `user.setPasskey(request.passkeyHash());`
+   - Sets timestamp: `user.setPasskeyCreatedAt(LocalDateTime.now());`
+   - No `biometricEnabled` field (NON_MEMBER table doesn't have this column)
+   - Saves entity: `nonMemberUserRepositry.save(user);`
+   - SQL: `UPDATE NON_MEMBER_USERS SET PASSKEY = ?, PASSKEY_CREATED_AT = ? WHERE id = ?`
+   - Logs: `LOGGER.info("Passkey hash stored for non-member user: {} at {}", request.email(), LocalDateTime.now());`
+   - Returns: `CommonResponse.success("Passkey hash stored successfully")`
+
+6. User Not Found:
+   - If not found in both tables:
+     - Logs warning: `LOGGER.warn("Passkey hash storage failed - User not found: {}", request.email());`
+     - Returns error: HTTP 404 NOT_FOUND with `USER_NOT_FOUND` code
+
+CLASSES AND METHODS INVOLVED:
+- `AuthServiceImpl` - Service implementation
+- `UserRepository` / `NonMemberUserRepositry` - JPA repositories
+- `UserModel` / `NonMemberUserModel` - JPA entities
+- `LocalDateTime` - Java time class
+- `CommonResponse` - Response wrapper
+- `ErrorResponse` - Error response class
+
+OUTPUT: Detailed explanation of service layer execution, database update operations, and entity persistence.
+
+---
+
+3.3 DTO Layer - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining data transfer object design.
+
+TASK: Explain in detail what happens with the `StorePasskeyHashRequest` DTO class.
+
+CONTEXT:
+- DTO class: `StorePasskeyHashRequest`
+- Package: `com.medgo.auth.domain.request`
+- Type: Java record
+- Fields: `email`, `passkeyHash` (both String type)
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Record Class Definition:
+   - `public record StorePasskeyHashRequest(String email, String passkeyHash) {}`
+   - Creates two private final fields
+   - Constructor and accessor methods
+
+2. Field Validation:
+   - `email` field:
+     - `@NotBlank(message = "Email is required")`
+     - `@Size(max = 100, message = "Email must not exceed 100 characters")`
+   - `passkeyHash` field:
+     - `@NotBlank(message = "Passkey hash is required")`
+     - No size limit (SHA256 hash is 64 hex characters or 32 bytes Base64)
+
+3. Request Deserialization:
+   - JSON: `{"email": "user@example.com", "passkeyHash": "a3f5b8c9d2e1f4a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1"}`
+   - Jackson deserializes to: `new StorePasskeyHashRequest("user@example.com", "a3f5b8c9...")`
+   - Validation runs automatically
+
+**OUTPUT:** Detailed explanation of DTO structure and validation.

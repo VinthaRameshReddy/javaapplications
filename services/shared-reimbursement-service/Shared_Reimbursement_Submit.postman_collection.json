@@ -1,0 +1,239 @@
+{
+	"info": {
+		"_postman_id": "shared-reimbursement-submit-collection",
+		"name": "Shared Reimbursement Service - Submit Endpoint",
+		"description": "Postman collection for testing the submit reimbursement endpoint locally.\n\n**Prerequisites:**\n1. SQL Server must be running on localhost:1433\n2. Databases 'medigo' and 'ReimDB' must exist\n3. Service must be running on port 10092\n\n**Quick Setup:**\nRun SQL Server using Docker:\n```bash\ndocker-compose -f docker-compose.sqlserver.yml up -d\n```\n\nThen create the databases:\n```sql\nCREATE DATABASE medigo;\nCREATE DATABASE ReimDB;\n```",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Submit Reimbursement - Inpatient",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "request",
+							"type": "text",
+							"value": "{\n  \"memberCode\": \"M123456789\",\n  \"patientName\": \"John Doe\",\n  \"serviceType\": \"Inpatient\",\n  \"natureOfClaim\": \"Surgical\",\n  \"hospitalClinicName\": \"Sample Hospital\",\n  \"hospitalClinicAddress\": \"123 Main St, City\",\n  \"hospitalClinicPhone\": \"+63-123-456-7890\",\n  \"requestingDoctor\": \"Dr. Jane Smith\",\n  \"confinementDate\": \"2024-01-15\",\n  \"dischargeDate\": \"2024-01-20\",\n  \"dateOfTreatment\": \"2024-01-15\",\n  \"totalClaimAmount\": 50000.00,\n  \"disbursementMethod\": \"Bank Transfer\",\n  \"bankName\": \"Sample Bank\",\n  \"bankBranch\": \"Main Branch\",\n  \"fullAccountName\": \"John Doe\",\n  \"bankAccountNumber\": \"1234567890\",\n  \"documents\": []\n}"
+						},
+						{
+							"key": "serviceInvoice",
+							"type": "file",
+							"src": [],
+							"description": "Service Invoice document(s)"
+						},
+						{
+							"key": "itemizedBreakdown",
+							"type": "file",
+							"src": [],
+							"description": "Itemized Breakdown document(s)"
+						},
+						{
+							"key": "medcert",
+							"type": "file",
+							"src": [],
+							"description": "Medical Certificate document(s)"
+						},
+						{
+							"key": "operativeTechnique",
+							"type": "file",
+							"src": [],
+							"description": "Operative Technique document(s)"
+						},
+						{
+							"key": "hospitalStatement",
+							"type": "file",
+							"src": [],
+							"description": "Hospital Statement document(s)"
+						},
+						{
+							"key": "certificateOfLiveBirth",
+							"type": "file",
+							"src": [],
+							"description": "Certificate of Live Birth document(s)"
+						},
+						{
+							"key": "liveBirth",
+							"type": "file",
+							"src": [],
+							"description": "Live Birth document(s)"
+						},
+						{
+							"key": "doctorPrescription",
+							"type": "file",
+							"src": [],
+							"description": "Doctor Prescription document(s)"
+						},
+						{
+							"key": "irDocument",
+							"type": "file",
+							"src": [],
+							"description": "IR Document(s)"
+						},
+						{
+							"key": "irDocumentAccredited",
+							"type": "file",
+							"src": [],
+							"description": "IR Document Accredited(s)"
+						},
+						{
+							"key": "bankDocuments",
+							"type": "file",
+							"src": [],
+							"description": "Bank Documents"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/reimbursement/v1/submit",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"reimbursement",
+						"v1",
+						"submit"
+					]
+				},
+				"description": "Submit a new reimbursement request for Inpatient service type. Requires confinementDate and dischargeDate."
+			},
+			"response": []
+		},
+		{
+			"name": "Submit Reimbursement - Outpatient",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "request",
+							"type": "text",
+							"value": "{\n  \"memberCode\": \"M123456789\",\n  \"patientName\": \"Jane Doe\",\n  \"serviceType\": \"Outpatient\",\n  \"natureOfClaim\": \"Consultation\",\n  \"hospitalClinicName\": \"Sample Clinic\",\n  \"hospitalClinicAddress\": \"456 Health Ave, City\",\n  \"hospitalClinicPhone\": \"+63-987-654-3210\",\n  \"requestingDoctor\": \"Dr. John Smith\",\n  \"availmentDate\": \"2024-01-25\",\n  \"dateOfTreatment\": \"2024-01-25\",\n  \"totalClaimAmount\": 5000.00,\n  \"disbursementMethod\": \"Bank Transfer\",\n  \"bankName\": \"Sample Bank\",\n  \"bankBranch\": \"Main Branch\",\n  \"fullAccountName\": \"Jane Doe\",\n  \"bankAccountNumber\": \"0987654321\",\n  \"documents\": []\n}"
+						},
+						{
+							"key": "serviceInvoice",
+							"type": "file",
+							"src": [],
+							"description": "Service Invoice document(s)"
+						},
+						{
+							"key": "itemizedBreakdown",
+							"type": "file",
+							"src": [],
+							"description": "Itemized Breakdown document(s)"
+						},
+						{
+							"key": "medcert",
+							"type": "file",
+							"src": [],
+							"description": "Medical Certificate document(s)"
+						},
+						{
+							"key": "operativeTechnique",
+							"type": "file",
+							"src": [],
+							"description": "Operative Technique document(s)"
+						},
+						{
+							"key": "hospitalStatement",
+							"type": "file",
+							"src": [],
+							"description": "Hospital Statement document(s)"
+						},
+						{
+							"key": "certificateOfLiveBirth",
+							"type": "file",
+							"src": [],
+							"description": "Certificate of Live Birth document(s)"
+						},
+						{
+							"key": "liveBirth",
+							"type": "file",
+							"src": [],
+							"description": "Live Birth document(s)"
+						},
+						{
+							"key": "doctorPrescription",
+							"type": "file",
+							"src": [],
+							"description": "Doctor Prescription document(s)"
+						},
+						{
+							"key": "irDocument",
+							"type": "file",
+							"src": [],
+							"description": "IR Document(s)"
+						},
+						{
+							"key": "irDocumentAccredited",
+							"type": "file",
+							"src": [],
+							"description": "IR Document Accredited(s)"
+						},
+						{
+							"key": "bankDocuments",
+							"type": "file",
+							"src": [],
+							"description": "Bank Documents"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/reimbursement/v1/submit",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"reimbursement",
+						"v1",
+						"submit"
+					]
+				},
+				"description": "Submit a new reimbursement request for Outpatient service type. Requires availmentDate."
+			},
+			"response": []
+		},
+		{
+			"name": "Submit Reimbursement - Minimal (No Files)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "request",
+							"type": "text",
+							"value": "{\n  \"memberCode\": \"M123456789\",\n  \"patientName\": \"Test Patient\",\n  \"serviceType\": \"Outpatient\",\n  \"natureOfClaim\": \"Consultation\",\n  \"hospitalClinicName\": \"Test Clinic\",\n  \"hospitalClinicAddress\": \"Test Address\",\n  \"hospitalClinicPhone\": \"+63-123-456-7890\",\n  \"requestingDoctor\": \"Dr. Test\",\n  \"availmentDate\": \"2024-01-25\",\n  \"dateOfTreatment\": \"2024-01-25\",\n  \"totalClaimAmount\": 1000.00,\n  \"disbursementMethod\": \"Bank Transfer\",\n  \"bankName\": \"Test Bank\",\n  \"bankBranch\": \"Test Branch\",\n  \"fullAccountName\": \"Test Account\",\n  \"bankAccountNumber\": \"1234567890\",\n  \"documents\": []\n}"
+						}
+					]
+				},
+				"url": {
+					"raw": "{{baseUrl}}/reimbursement/v1/submit",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"reimbursement",
+						"v1",
+						"submit"
+					]
+				},
+				"description": "Submit a minimal reimbursement request without any file attachments for quick testing."
+			},
+			"response": []
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:10092",
+			"type": "string"
+		}
+	]
+}

@@ -1,0 +1,51 @@
+Title: Implement embedded-image HTML emails for claims-service
+
+Implement embedding an image in HTML emails for the Java Spring Boot service `claims-service` by reusing the pattern used in `shared-reimbursement-service`.
+
+Requirements:
+- Java 21, Spring Boot. Produce ready-to-run Java source files with imports, annotations, and DI wiring.
+- Approach: embed the image as a data-URI (data:{mime};base64,{base64}) in the HTML email body, with a fallback HTML without the image when the resource is missing.
+- Provide the following artifacts in the `claims-service` module:
+
+1) com.medgo.claims.util.EmailImageUtil (or similar)
+   - Spring `@Component` or simple utility class.
+   - Loads an image from the classpath using `ClassPathResource` and the configured path property.
+   - Returns an object with `base64` and `mimeType` or throws `IOException` if missing.
+   - Use `StreamUtils.copyToByteArray` and `Base64.getEncoder().encodeToString(...)`.
+   - Log useful info/errors.
+
+2) com.medgo.claims.service.NotificationEmailService
+   - Spring `@Service`.
+   - `sendReimbursementEmail(String to, String subject, Map<String,Object> model)` (or similar) which:
+     - Builds the email HTML body and injects `<img src="data:{mime};base64,{base64}" ... />` at the top.
+     - If the image load fails, logs warning and sends HTML without image.
+     - Either uses existing internal `notification` Feign client to POST an `EmailRequest` DTO (with `contentType: "HTML"` and optionally `attachments`) OR uses `JavaMailSender` if service sends directly. Detect whichever is consistent with repo style; if using Feign, include attachments as base64 in DTO.
+   - Ensure `@Value("${email.image.path:emails/reimbursement.png}") private String emailImagePath;` is used to configure image path.
+
+3) src/main/resources/<email image> — add a placeholder image path and document the property in `application.properties`:
+   - Add `email.image.path=emails/reimbursement.png` (or chosen path).
+
+4) Unit test NotificationEmailServiceTest
+   - Use Mockito to mock `EmailImageUtil` (or mock ClassPathResource reading) and verify:
+     - When image present, generated HTML contains `src="data:`.
+     - When image missing/throws IOException, fallback HTML is used and no exception escapes.
+
+5) README or a short note in `application.properties` describing the property and tradeoffs:
+   - Note: data-URI embeds increase email size but works broadly. If preferring smaller emails, implement multipart MIME with attachments and reference `cid:`.
+
+Extra details for implementer:
+- Show full imports and package declarations.
+- Use explicit error handling and logging (no empty catches).
+- Keep HTML encoding safe for injected values; escape where appropriate.
+- If the repo sends notifications through a central `notification-service` via Feign, send the HTML body (with data-URI) in the `EmailRequest` DTO; the repo already supports base64 attachments if you prefer attachments instead.
+- Produce one combined change (all files) and include a small unit test file.
+
+Deliverable expected from the code generator:
+- Java classes `EmailImageUtil` and `NotificationEmailService` with DI wiring and imports.
+- `application.properties` entry `email.image.path=emails/reimbursement.png`.
+- A sample placeholder image path suggestion (`src/main/resources/emails/reimbursement.png`).
+- Unit test `NotificationEmailServiceTest`.
+- A brief README note about the property and tradeoffs.
+
+Usage:
+- Paste this file into your AI/codegen assistant to generate the actual files for the `claims-service` module.

@@ -1,0 +1,52 @@
+trigger: none
+pr: none
+
+variables:
+  servicePath: 'services/membership-service'
+  chartPath: 'services/membership-service/membership-chart'
+  dockerRegistry: 'Medgo2.0ACR_SVC_Connection-12-01-26'
+  imageName: 'membership-service-stg'
+  #dockerRegistryEndpoint: 'acrmpiseaashared01'
+  imagePullSecrets: 'medgopullsecret'
+  aksCluster: 'aks-mpi-sea-a-med2g01'
+  aksResourceGroup: 'mc-aks-rg-sea-03'
+  azureSubscription: 'medgo2_svc_connection'
+  acrName: 'acrmpiseaashared01.azurecr.io'
+  propsfile: 'membership'
+
+stages:
+# ------------------------------
+#  Build / Scan Stage
+# ------------------------------
+- stage: Build
+  displayName: "Image - Build, Scan and Push"
+  jobs:
+  - template: templates/build.yaml
+    parameters:
+      servicePath: $(servicePath)
+      dockerRegistry: $(dockerRegistry)
+      imageName: $(imageName)
+      acrName: $(acrName)
+
+# ------------------------------
+#  Deploy Stage
+# ------------------------------
+- stage: Deploy
+  displayName: "Deploy to AKS"
+  dependsOn: Build
+  variables:
+    # Option to override the default AKS for testing/new environment
+    # Change this value to 'new' to deploy to alternate RG + AKS
+    targetEnvironment: 'external'   # valid values: 'prod', 'external', or 'internal'
+  jobs:
+  - template: templates/deploy.yaml
+    parameters:
+      dockerRegistryEndpoint: $(dockerRegistry)
+      imagePullSecrets: $(imagePullSecrets)
+      imageName: $(imageName)
+      azureSubscription: $(azureSubscription)
+      serviceName: $(propsfile)
+      chartPath: $(chartPath)
+      propsfile: $(propsfile)
+      targetEnvironment: $(targetEnvironment)
+

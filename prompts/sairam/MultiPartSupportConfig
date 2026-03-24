@@ -1,0 +1,20 @@
+
+Create a  configuration class named FeignMultipartSupportConfig.
+
+This configuration is required to enable multipart/form-data file uploads using OpenFeign.
+
+The class should:Be annotated with @Configuration
+
+Define a Spring @Bean that returns a Feign Encoder
+
+The encoder configuration:
+
+Use SpringFormEncoder to support multipart requests
+
+Wrap the form encoder with SpringEncoder
+
+Use HttpMessageConverters for proper message conversion
+
+Inject ObjectFactory<HttpMessageConverters> into the bean method
+
+This encoder must be usable by Feign clients when uploading MultipartFile objects.

@@ -1,0 +1,51 @@
+================================================================================
+SHARED PROVIDER SERVICE - API PROMPTS
+================================================================================
+Service: shared-provider-service
+Context path: /provider
+Security: Basic Authentication + API Key (Azure Key Vault: app-security-*)
+Health: /health, /actuator/health (no auth)
+================================================================================
+
+--- API 1: List Cities ---
+Endpoint: POST /provider/v1/cities
+Request params: page (default 0, min 0), size (default 10, min 1), search (optional)
+Request body: DecryptBody(CityRequest.class) - encrypted request
+Response: CommonResponse with @EncryptResponse
+Controller: CityController.listCities(page, size, search, request)
+Service: CityService.getCities(page, size, search, request)
+Notes: Uses @DecryptBody and @EncryptResponse from common-objects crypto.
+
+--- API 2: View Doctor Hospital (V2) ---
+Endpoint: POST /provider/v1/doctor
+Request params: page (default 0, min 0), size (default 5, min 5)
+Request body: DecryptBody(ViewDoctorHospitalRequest.class)
+Response: CommonResponse with @EncryptResponse
+Controller: HealthFacilityController.getViewDoctorHospitalV2(page, size, request)
+Service: HealthFacilityService.getViewDoctorHospitalV2(page, size, request)
+
+--- API 3: Hospitals List ---
+Endpoint: POST /provider/v1/hospital
+Request params: page (default 0), size (default 10), search (optional)
+Request body: DecryptBody(HospitalRequest.class)
+Response: CommonResponse with @EncryptResponse
+Controller: HealthFacilityController.getHospitalsList(page, size, search, request)
+Service: HealthFacilityService.getHospitalsList(page, size, search, request)
+
+--- API 4: Admin JSON Sync Trigger ---
+Endpoint: POST /provider/admin/sync/trigger
+Request: none
+Response: ResponseEntity<Map<String, Object>> with status, message, timestamp
+Controller: JsonSyncController.triggerJsonSync()
+Service: JsonDataSyncService.triggerManualSync()
+Notes: Manual trigger for JSON data sync from database; no encryption.
+
+--- Security Config (Shared Provider) ---
+- SecurityConfig: HttpBasic + custom API key filter (After BasicAuthenticationFilter).
+- Secrets from AzureKeyVaultService: app-security-api-key-header, app-security-api-key, app-security-user, app-security-password-bcrypt.
+- Permit: /health, /actuator/health. All other requests require authenticated + valid API key header.
+- API key filter returns 401 JSON: {"error":"invalid_or_missing_api_key"} if header missing or invalid.
+- UserDetailsService: single user from key vault (username + bcrypt password), role CLIENT.
+- Session: STATELESS.
+
+================================================================================

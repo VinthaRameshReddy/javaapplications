@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "loa-chart.name" . }}-deploy
+  labels:
+    app: {{ include "loa-chart.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "loa-chart.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "loa-chart.name" . }}
+    spec:
+      containers:
+      - name: loa-service
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.targetPort }}
+        resources:
+          requests:
+            cpu: {{ .Values.resources.requests.cpu }}
+            memory: {{ .Values.resources.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.limits.cpu }}
+            memory: {{ .Values.resources.limits.memory }}
+        volumeMounts:
+        - name: app-config
+          mountPath: /application/BOOT-INF/classes/{{ .Values.env.name }}
+          subPath: application.properties
+          readOnly: true
+      volumes:
+      - name: app-config
+        secret:
+          secretName: {{ include "loa-chart.name" . }}-creds
+          items:
+            - key: application.properties
+              path: application.properties

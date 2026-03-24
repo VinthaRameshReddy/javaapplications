@@ -1,0 +1,113 @@
+   @GetMapping("/member/dependent")
+    @EncryptResponse
+    public CommonResponse findDependentsByPrincipalCode(
+            @RequestParam("userCode") String userCode) {
+        CommonResponse response = memberService.findDependentsByPrincipalCode(userCode);
+        return response;
+    }-->@Override 
+    public CommonResponse findDependentsByPrincipalCode(String userCode) {
+        try {
+            log.info("Fetching dependents for principalCode: {}", userCode);
+
+            // Get dependents whose principalCode = given memberCode
+            List<MembershipEntity> dependents = membershipRepository.findByPrincipalCode(userCode);
+
+            if (dependents == null || dependents.isEmpty()) {
+                return CommonResponse.error(
+                        new ErrorResponse(404, CoreConstants.DEPENDENTS_NOT_FOUND),
+                        404);
+            }
+
+            List<UserDependentResponse> responses = new ArrayList<>();
+
+            for (MembershipEntity dependent : dependents) {
+                UserDependentResponse ud = new UserDependentResponse();
+                ud.setMembership(mapper.toMembershipResponse(dependent));
+                ud.setDependentCode(dependent.getMemberCode());
+                ud.setStatus(dependent.getMemStatus());
+                ud.setId(Long.valueOf(dependent.getMemberCode()));
+
+                // Fetch photo URL
+                try {
+                    Map<String, String> tags = new HashMap<>();
+                    tags.put("tableName", "USER_PHOTO");
+                    tags.put("id", dependent.getMemberCode());
+                    List<String> links = fileServiceFeignClient.findLinksByTags(tags);
+                    ud.setPhotoUrl(links != null && !links.isEmpty() ? links.get(0) : null);
+                } catch (FeignException e) {
+                    log.warn("Failed to fetch photo URL for dependent {}: {}", dependent.getMemberCode(), e.getMessage());
+                    ud.setPhotoUrl(null);
+                }
+
+                // Consent check
+                boolean isConsented = dataPrivacyTaggingRepository.existsByMemberCode(dependent.getMemberCode());
+                if (!isConsented && dependent.getBirthDate() != null) {
+                    isConsented = CoreUtils.calculateAge(dependent.getBirthDate().toLocalDate()) < 18;
+                }
+                ud.setConsented(isConsented);
+
+                responses.add(ud);
+            }
+            Map<String, Object> successPayload = new HashMap<>();
+            successPayload.put("", responses);  // Raw List<UserDependentResponse> - serializes to JSON array
+
+            List<Object> valueList = successPayload.values().stream()
+                    .collect(toList());
+            return CommonResponse.success(valueList);
+
+        } catch (Exception e) {
+            log.error("Failed to retrieve dependents: {}", e.getMessage(), e);
+            return CommonResponse.error(
+                    new ErrorResponse(500, "Failed to retrieve dependents: " + e.getMessage()),
+                    500);
+        }
+    }in this implementation i am getting two list in response like-->{
+    "statusCode": "000",
+    "response": "SUCCESS",
+    "data": [
+        [
+            {
+                "id": 30951457,
+                "dependentCode": "30951457",
+                "status": "RESIGN",
+                "membership": {
+                    "memberCode": "30951457",
+                    "principalCode": "30951456",
+                    "memberAppNum": "352540688",
+                    "firstName": "JOHN",
+                    "lastName": "ORDANIEL",
+                    "middleName": "B",
+                    "sex": 1,
+                    "age": "69.00",
+                    "birthDate": "1956-03-18T00:00:00",
+                    "civilStatus": "MARRIED",
+                    "memStatusCode": "9",
+                    "memStatus": "RESIGN",
+                    "memType": "QUALIFIED DEPENDENT",
+                    "planDesc": "SMALL PRIVATE OPEN",
+                    "effectivityDate": "2008-09-16T00:00:00",
+                    "validityDate": "2013-09-15T00:00:00",
+                    "resignDate": "2013-04-01T00:00:00",
+                    "motherCode": "",
+                    "accountCode": "11212002-000084",
+                    "accountName": "\"K\" LINE RORO BULK SHIP MANAGEMENT CO,. LTD.-ROHQ",
+                    "accountType": "Corporate",
+                    "idRem": "",
+                    "idRem2": "DD LIMIT 100,000",
+                    "idRem3": "PEC LIMIT UP TO 50% OF DD",
+                    "idRem4": "W/ ASIAN HOSPITAL",
+                    "idRem5": "W/O SLMC-GLOBAL",
+                    "idRem6": "",
+                    "idRem7": "",
+                    "otherRemarks": "",
+                    "rspRoomRateId": 25259
+                },
+                "photoUrl": null,
+                "consented": false
+            }
+                "photoUrl": null,
+                "consented": true
+            }
+        ]
+    ]
+}-->list in list that is i am getting in response i want only one list can you modify in my response implantation 

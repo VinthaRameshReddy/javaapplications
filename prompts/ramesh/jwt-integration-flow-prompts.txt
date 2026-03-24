@@ -1,0 +1,45 @@
+================================================================================
+JWT INTEGRATION FLOW - PROMPTS
+================================================================================
+Relevant services: auth-service (token generation), loa-service, claims-service, membership-service, etc. (token consumption via JwtRequestFilter from common-objects)
+================================================================================
+
+--- 1) Token generation (auth-service) ---
+Endpoint: POST /auth-service/api/v1/generateToken
+Request body: @DecryptBody(JwtRequest.class) — e.g. { "userId": "email_or_mobile" }
+Headers: X-DEVICE-ID (required) — used as subject in JWT and for token binding
+Flow:
+- Authenticate the user (e.g. AuthenticationManager.authenticate(UsernamePasswordAuthenticationToken(userId, userId))).
+- Read deviceId from RequestContext (set from X-DEVICE-ID header). If missing, throw GenericException("DeviceId header is required").
+- Sanitize deviceId: if it contains comma (e.g. "userId,deviceId"), take the part after the last comma as deviceId.
+- Load UserDetails by deviceId (e.g. jwtInMemoryUserDetailsService.loadUserByUsername(deviceId)).
+- Generate JWT with JwtTokenUtil.generateToken(userDetails, request.userId()) so token includes username (userId) claim for memberCode validation.
+- Return response with token in header: X-Access-Token = token. Response body: CommonResponse.success with message "Token generated successfully" (no token in body).
+- Use @EncryptResponse on the endpoint.
+
+--- 2) JWT validation filter (common-objects – JwtRequestFilter) ---
+- Extend OncePerRequestFilter. Order(1). Run before UsernamePasswordAuthenticationFilter.
+- Bypass validation for paths like /health, /actuator/**, /api/v1/generateToken, login, and other public paths (enlistedForSecurityBypass).
+- For protected paths: read Authorization header (Bearer &lt;token&gt;). If missing or invalid, return 401 with appropriate JSON error.
+- Optional: support header "X-Access-Token" or "x-access-token" as alternative to Authorization.
+- Validate token using JwtTokenUtil (signature, expiry). Extract username (deviceId) and userId from claims. Validate userId header matches token claim if applicable.
+- Set authentication: UsernamePasswordAuthenticationToken(userDetails, null, authorities). SecurityContextHolder.getContext().setAuthentication(...).
+- Use JwtUserDetailsService to load UserDetails by deviceId/username from token. Use EncryptionService for request/response if needed.
+- On error (expired, invalid): set 401, write JSON error body, do not call chain.doFilter.
+
+--- 3) JWT token util (common-objects – JwtTokenUtil) ---
+- Generate token: include subject (e.g. deviceId), username claim (userId), issued at, expiration (e.g. from jwt.token.validity).
+- Sign with HMAC key (e.g. from jwt.secret or constant). Use io.jsonwebtoken with Keys.hmacShaKeyFor(secret.getBytes()).
+- getUsernameFromToken, getExpirationDateFromToken, getClaimFromToken, validateToken(token, userDetails) (subject match + !isTokenExpired).
+- generateToken(UserDetails userDetails, String username) overload to add custom claims (e.g. username for memberCode validation in downstream services).
+
+--- 4) Security chain for JWT-protected service ---
+- Disable CSRF. Session: STATELESS.
+- authorizeHttpRequests: permit health/actuator and public paths; anyRequest().authenticated().
+- addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class).
+- No form login or httpBasic for API paths (JWT only for protected resources).
+
+--- 5) End-to-end flow prompt ---
+"Implement the JWT integration flow for a MedGo API: (1) Auth service exposes POST /api/v1/generateToken accepting DecryptBody JwtRequest with userId; require X-DEVICE-ID header and put token in response header X-Access-Token. (2) A shared JwtRequestFilter (OncePerRequestFilter) reads Bearer token from Authorization or X-Access-Token, validates via JwtTokenUtil, loads UserDetails by deviceId from token, and sets SecurityContext. (3) JwtTokenUtil generates and validates tokens with subject=deviceId and a username claim=userId; use HMAC secret from config. (4) Protected services add this filter before UsernamePasswordAuthenticationFilter and permit only health/actuator without token. Describe the request/response and filter order."
+
+================================================================================

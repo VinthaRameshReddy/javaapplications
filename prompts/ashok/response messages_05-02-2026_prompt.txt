@@ -1,0 +1,39 @@
+@services/For the auth-service, I need an Excel document listing each endpoint with its corresponding service name, endpoint, success message, failure message, and status codes.
+Each endpoint should be clearly documented in the Excel for easy review and sharing.
+1. Registration
+	- Member
+		-validateMemberRegDetails
+		-validateMemberDetails
+		-verifyOtp [flowType]
+		-setPassword
+ 
+	- Non Member
+		-validateMemberDetails
+		-verifyOtp [flowType]
+		-setPassword
+ 
+2. Login
+	- First Time
+		- login
+		- otpVerify [flowType] -> Success
+	- Returning User
+		- login : -> Success
+        - User Details 
+ 
+3. Forgot Password
+	- requestOtp
+	- verifyOtp [ flowType ]
+	- resetPassword
+4.Biometric Login
+        -/biometric/storePasskeyHash,
+        -/biometric/challenge,
+        -/biometric/login 
+-->like this flow give me and add in that excel file 
+
+
+-->repeated all services like that 
+   1.claims-service
+   2.facescan-service
+   3.membership-service
+   4.provider-service
+   5.loa-service

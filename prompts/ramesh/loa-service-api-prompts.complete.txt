@@ -1,0 +1,19 @@
+Service group: loa-service
+Original file: loa-service-api-prompts.txt
+
+Scope:
+Create precise per-endpoint prompts to regenerate `loa-service` fully.
+
+Instructions:
+1. For each controller in `services/loa-service/src/main/java/**/controller`, create a prompt that:
+   - Enumerates endpoint signatures and DTOs (extracted or inferred).
+   - Specifies business logic, validation rules, and allowed error responses.
+   - Requests a git-style patch that rebuilds the full service with tests.
+
+Non-functional:
+- Java 17, Spring Boot 3.x; include tests and migration notes for breaking changes.
+
+Output:
+- Per-endpoint prompt files under `prompts/ramesh/` named `ramesh-loa-<controller>-<endpoint>.complete.md`.
+
+Regenerate now.

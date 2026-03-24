@@ -1,0 +1,122 @@
+Title: Membership Service (Gateway) - API prompts / 2026-02-13 --> reformatted
+
+Purpose
+Document membership-service gateway APIs that proxy to shared-membership-service. Include controller behavior, validation, feign client usage, security rules, and developer testing notes.
+
+---
+
+2.1 Overview / Gateway Responsibilities -
+
+ROLE: You are a backend developer documenting the gateway (membership-service) that proxies membership-related calls to shared-membership-service via Feign.
+
+CONTEXT:
+- Service name: `membership-service` (gateway)
+- Proxies calls to `shared-membership-service` using Feign client `SharedMembershipServiceClient`
+- Validates `memberCode` against JWT/security context before proxying
+- Base URL configured via `shared.membership.service.url`
+- Feign credentials and APIM keys loaded from Key Vault or properties:
+  - `shared.membership.basic.user`, `shared.membership.basic.password`
+  - `shared.membership.apim.header`, `shared.membership.apim.key`
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP (common flow for all proxied APIs):
+
+1. HTTP Request Reception:
+   - Controller (e.g., `MembershipProxyController`) receives request at gateway endpoint (see endpoints below).
+   - Request headers propagated: `X-DEVICE-ID`, `X-APPLICATION-ID`, `X-CLIENT-ID`, `X-PLATFORM`, and authorization.
+
+2. Member Code Validation:
+   - Controller calls `memberCodeValidationService.validateMemberCode(userCode, request)` which:
+     - Extracts and validates the memberCode parameter.
+     - Verifies the memberCode is authorized for the current JWT/security context.
+     - Returns 401/403 if validation fails.
+
+3. Feign Call Preparation:
+   - Build Feign call using `SharedMembershipServiceClient`.
+   - Do NOT forward `Authorization` header to shared service (shared service uses Basic + APIM key).
+   - Propagate device & client headers via `memberRequestInterceptor`.
+
+4. Execute Feign Call:
+   - Call corresponding shared service endpoint and map response to `CommonResponse`.
+   - On upstream errors, gateway should translate status codes to the gateway's `CommonResponse` format and log appropriately.
+
+5. Return Encrypted Response:
+   - Controller returns `ResponseEntity.ok().body(CommonResponse)` and `@EncryptResponse` ensures response encryption for clients.
+
+CLASSES AND METHODS INVOLVED (gateway):
+- `MembershipProxyController` - controller that exposes endpoints below.
+- `memberCodeValidationService` - validates userCode against JWT.
+- `SharedMembershipServiceClient` - Feign client for shared-membership-service.
+- `FeignClientConfig` - configuration for basic auth, API key header, and interceptors.
+- `memberRequestInterceptor` - propagates device/client headers.
+- `CommonResponse` and `@EncryptResponse`.
+
+---
+
+2.2 API Endpoints (detailed)
+
+API 1: Member Profile (Proxy)
+Endpoint: GET /api/v1/membership/memberProfile
+Query params: `userCode` (required), `userDependentId` (optional)
+Controller method: `MembershipProxyController.findMemberByCode(userCode, userDependentId, request)`
+Validation: `memberCodeValidationService.validateMemberCode(userCode, request)`
+Feign: `SharedMembershipServiceClient.findMemberByCode(userCode, userDependentId)` -> GET {url}/membership/v1/member
+Response: `CommonResponse` with `@EncryptResponse`
+
+API 2: Dependents (Proxy)
+Endpoint: GET /api/v1/membership/dependent
+Query params: `userCode` (required)
+Controller method: `MembershipProxyController.findDependentsByPrincipalCode(userCode, request)`
+Validation: `memberCodeValidationService.validateMemberCode(userCode, request)`
+Feign: `SharedMembershipServiceClient.findDependentsByPrincipalCode(userCode)` -> GET {url}/membership/v1/member/dependent
+Response: `CommonResponse` with `@EncryptResponse`
+
+API 3: Maternity Benefits (Proxy)
+Endpoint: GET /api/v1/membership/maternity
+Query params: `userCode` (required)
+Controller method: `MembershipProxyController.findMaternityBenefitsByCode(userCode, request)`
+Validation: `memberCodeValidationService.validateMemberCode(userCode, request)`
+Feign: `SharedMembershipServiceClient.findMaternityBenefitsByCode(userCode)` -> GET {url}/membership/v1/member/maternity
+Response: `CommonResponse` with `@EncryptResponse`
+
+---
+
+2.3 Feign Client & Config
+
+ROLE: You are a developer documenting Feign client configuration and interceptors used by membership-service.
+
+WHAT TO NOTE:
+- `FeignClientConfig` loads credentials and API key from Key Vault or `application.properties`.
+- Interceptors:
+  - BasicAuthInterceptor - adds Basic auth header using `shared.membership.basic.user`/`password`.
+  - ApiKeyInterceptor - adds APIM header (`shared.membership.apim.header`) and key (`shared.membership.apim.key`).
+  - memberRequestInterceptor - forwards `X-DEVICE-ID`, `X-APPLICATION-ID`, `X-CLIENT-ID`, `X-PLATFORM` from the incoming request.
+- DO NOT copy the incoming `Authorization` bearer header to the Feign call.
+- Feign client declaration:
+  - `@FeignClient(name = "shared-membership-service", url = "${shared.membership.service.url}", configuration = FeignClientConfig.class)`
+
+ERROR & RETRY:
+- Handle shared service 5xx by returning appropriate CommonResponse error. Consider retry/backoff in Feign config for transient errors.
+
+---
+
+2.4 Security & Operational Notes
+
+- Validate `memberCode` strictly against JWT context before calling shared service to prevent horizontal privilege escalation.
+- For secrets, prefer Key Vault references and avoid committing credentials to properties files.
+- Add monitoring/alerts for Feign call failures to the shared membership service.
+- Ensure APIM keys and Basic auth are rotated and updated in Key Vault.
+
+---
+
+Developer testing & Examples:
+- Example: GET /api/v1/membership/memberProfile?userCode=ABC123
+- Ensure request contains device headers and valid JWT; verify gateway performs memberCode validation and forwards to shared service.
+
+Notes / Follow-ups:
+- Add integration tests that mock `SharedMembershipServiceClient` and verify `memberCodeValidationService` is invoked.
+- Update Postman collection and API docs to show gateway behavior and headers that must be propagated.
+
+---
+
+End of formatted membership-service prompts.
+
