@@ -1,0 +1,43 @@
+version: '3.8'
+networks:
+  com.medgo.appointmentnwk:
+    name: app
+    driver: bridge
+volumes:
+  postgres_data:
+    driver: local
+services:
+  appointment-service:
+    image: com.medgo/appointment-service:0.1.0
+    container_name: appointment-service
+    ports:
+      - "12516:12516"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/appointmentservicedb
+      SPRING_DATASOURCE_PASSWORD: CujDornnbfNm
+    networks:
+      - com.medgo.appointmentnwk
+    depends_on:
+      - db
+    
+  db:
+    image: postgres:12.6
+    container_name: com.medgo.appointmentdb
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - com.medgo.appointmentnwk
+    ports:
+      - "19133:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: CujDornnbfNm
+      POSTGRES_DB: appointmentservicedb
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 1m
+      timeout: 10s
+      retries: 2
+  

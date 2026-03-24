@@ -1,0 +1,87 @@
+plugins {
+    id 'java'
+    id 'jacoco'
+    id 'maven-publish' // allows publishToMavenLocal
+}
+
+group = 'com.medgo'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(libs.versions.java.get())
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+    implementation 'com.google.code.gson:gson:2.8.8'
+
+    // Jakarta / validation
+    implementation 'jakarta.persistence:jakarta.persistence-api:3.0.0'
+    implementation 'jakarta.validation:jakarta.validation-api:3.0.0'
+    implementation 'jakarta.annotation:jakarta.annotation-api:2.1.0'
+    implementation 'org.hibernate.validator:hibernate-validator:6.2.0.Final'
+
+    // Core Spring Boot starters
+    implementation 'org.springframework.boot:spring-boot-starter-security:3.2.5'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa:3.2.5'
+    implementation 'org.springframework.boot:spring-boot-starter-validation:3.2.5'
+
+    // Jackson (JSON serialization)
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.0'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.17.0'
+
+    // Optional: Lombok if you use it
+    compileOnly 'org.projectlombok:lombok:1.18.32'
+    annotationProcessor 'org.projectlombok:lombok:1.18.32'
+
+    // JSON / HTTP
+    implementation 'org.json:json:20180813'
+    implementation 'org.apache.httpcomponents:httpclient:4.5.13'
+    implementation 'org.apache.httpcomponents:httpmime:4.5.13'
+    implementation 'commons-codec:commons-codec:1.19.0'
+
+    implementation 'org.springframework.boot:spring-boot-starter-web:3.2.5'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.17.0'
+
+
+    // JWT
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.2'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.2'
+
+//    SHARED RESOURCES
+    implementation "com.medgo:logging-utils:0.1.0"
+
+    // Lombok with explicit version
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+    // Test
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:2.7.17'
+    testImplementation 'org.springframework.security:spring-security-test:5.7.12'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = true
+    }
+}
+
+// ✅ publish to Maven local so other projects can depend on it
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+        }
+    }
+}

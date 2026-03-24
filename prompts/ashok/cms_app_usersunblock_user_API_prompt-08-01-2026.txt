@@ -1,0 +1,81 @@
+-/users/unblock-user API -08-01-2026-->create api based on this prompt
+
+AI Prompt Template – Controller Layer (POST-only)
+
+TASK:
+Generate a detailed controller-layer prompt for the `/unblock-user` endpoint following the standardized POST-only API template.
+
+CONTEXT:
+- Controller class: `UserActionLogController`
+- Endpoint: `POST /api/v1/users/unblock-user`
+- Request DTO: `UnblockUserRequest` with fields: `id`, `actionedBy`
+- Flow: Controller → Service → Repository. Controller must be thin.
+- Response wrapper: `CommonResponse`
+
+REQUIREMENTS:
+- Use POST-only endpoint (`/unblock-user`).
+- Decrypt request with `@DecryptBody(UnblockUserRequest.class)`.
+- Validate inputs with `@Valid` (`@NotBlank` for `id`).
+- Enforce admin authorization (`@PreAuthorize("hasRole('ADMIN')")`).
+- Log `traceId` and masked id only: `traceId={} | method=unblockUser | userId={}`.
+- Delegate to `userService.unblockUser(request)` and emit audit record.
+- Return `CommonResponse` and apply `@EncryptResponse` if configured.
+
+OUTPUT FORMAT:
+- Prompt with method signature and short snippet showing trace logging and delegation.
+
+METHOD SIGNATURE (reference):
+```java
+@PostMapping("/unblock-user")
+@EncryptResponse
+@PreAuthorize("hasRole('ADMIN')")
+public CommonResponse unblockUser(@Valid @DecryptBody(UnblockUserRequest.class) UnblockUserRequest request)
+```
+
+SHORT EXAMPLE SNIPPET:
+```java
+String traceId = RequestContext.getTraceId();
+log.info("traceId={} | method=unblockUser | userId={}", traceId, maskId(request.getId()));
+CommonResponse response = userService.unblockUser(request);
+return response;
+```
+
+NOTES:
+- Ensure change-of-state audits are recorded and reason/history preserved for compliance.
+
+Layered Prompt Model (All Layers)
+
+1) Controller Layer
+ROLE: Senior Java Spring Boot developer.
+TASK: Generate `UserActionLogController.unblockUser` POST endpoint.
+OUTPUT: Controller snippet and signature (see above).
+
+2) Service Layer
+ROLE: Service developer.
+TASK: Implement `userService.unblockUser(UnblockUserRequest)`.
+REQUIREMENTS: Validate current status, update status to ACTIVE, persist changes, emit audit.
+OUTPUT: Service skeleton.
+
+3) Repository Layer
+ROLE: Persistence engineer.
+TASK: Provide repository update snippet for clearing block metadata.
+OUTPUT: Repository and entity changes sample.
+
+4) DTO Layer
+ROLE: DTO author.
+TASK: `UnblockUserRequest` and `UnblockUserResponse` definitions with validation.
+OUTPUT: DTO examples.
+
+5) Utilities
+TASK: `AuditRecorder` and `ComplianceLogger`.
+OUTPUT: Utility signatures.
+
+6) Tests
+TASK: Unit tests for successful unblock and invalid-state handling.
+OUTPUT: Test skeletons.
+
+7) Docs
+TASK: API docs and example payloads for unblock operation.
+OUTPUT: Markdown snippet.
+
+

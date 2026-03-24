@@ -1,0 +1,34 @@
+Create a FileValidationService class
+
+This service will validate files uploaded using MultipartFile.
+
+Requirements:
+
+Only allow image files: jpg, jpeg, png
+
+Max size per file: 10 MB
+
+Max total size per section: 50 MB
+
+Some sections can have multiple files
+
+Some sections (like Bank Documents) should allow only one file
+
+Empty or null files should be allowed (documents are optional)
+
+Validation rules:
+
+Check file extension using the original filename
+
+Throw IllegalArgumentException with clear messages if validation fails
+
+Validate:
+
+invalid file type
+
+file size limit exceeded
+
+more than one file uploaded where only one is allowed in bank upload field if we upload more then one file give alert message
+for bankfile upload only one file need to upload remaining files like medcert we can able to upload multiple files
+
+do n,t remove existing functionality add this requirement

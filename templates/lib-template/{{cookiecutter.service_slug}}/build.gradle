@@ -1,0 +1,46 @@
+plugins {
+    alias(libs.plugins.springDependencyManagement)
+    id 'java'
+    alias(libs.plugins.sonarqube)
+    id 'jacoco'
+}
+
+group = 'com.kotak.mb2'
+version = '0.1.0'
+
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(libs.versions.java.get())
+    }
+}
+
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation platform(libs.spring)
+    compileOnly libs.sl4j
+    compileOnly libs.servlet
+    
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+    testImplementation libs.assertj
+    testImplementation libs.sl4jSimple
+}
+
+jacocoTestReport {
+    reports {
+        xml.enabled true
+    }
+}
+test.finalizedBy jacocoTestReport
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
+}

@@ -1,0 +1,179 @@
+1. /member/updateEmail API - Update Email Address (2026-02-10) --> create api based on this prompt
+
+Purpose
+Securely update a user's email address by verifying current password, sending OTP to the *new* email address, and confirming the change. Provide clear error messages, handle edge cases (duplicate email, OTP expiry, network), and send confirmation emails to both old and new addresses after success.
+
+---
+
+1.1 Controller Layer -
+
+ROLE: You are a Java Spring Boot backend developer specifying controller-layer behavior.
+
+TASK: Controller behavior for two endpoints:
+- POST /api/v1/auth/member/updateEmail/initiate
+- POST /api/v1/auth/member/updateEmail/confirm
+
+CONTEXT:
+- Controller: `AuthController`
+- DTOs:
+  - `InitiateEmailUpdateRequest { userId, currentPassword, newEmail }`
+  - `VerifyOtpRequest { otpRefId, otp, flowType }` (use flowType = "UPDATE_EMAIL" for confirm)
+- Annotations: `@PostMapping`, `@EncryptResponse`, `@DecryptBody`, `@Valid`
+- Return types: `CommonResponse` or `ResponseEntity<CommonResponse>` per token/header needs
+
+CONTROLLER FLOW:
+1. Decrypt & validate incoming request with `@DecryptBody` and `@Valid`.
+2. For `initiate`:
+   - Validate `DeviceId` header via `SecurityValidationUtil.validateDeviceId()`; return early if invalid.
+   - Call `registrationService.initiateEmailUpdate(request)` and return its `CommonResponse`.
+3. For `confirm`:
+   - Call `registrationService.confirmEmailUpdate(request)` and return its `CommonResponse`.
+4. Log only non-sensitive identifiers (userId, otpRefId).
+
+Method signatures:
+```java
+@PostMapping("/member/updateEmail/initiate")
+@EncryptResponse
+public CommonResponse initiateUpdateEmail(@Valid @DecryptBody(InitiateEmailUpdateRequest.class) InitiateEmailUpdateRequest request)
+
+@PostMapping("/member/updateEmail/confirm")
+@EncryptResponse
+public CommonResponse confirmUpdateEmail(@Valid @DecryptBody(VerifyOtpRequest.class) VerifyOtpRequest request)
+```
+
+Classes involved:
+- `AuthController`, `RegistrationService`, `AuthServiceImpl`, `OtpService`, `NotificationServiceClient`, `RequestContext`, `CommonResponse`, `ErrorResponse`
+
+---
+
+1.2 Service Layer - Detailed Implementation Prompt
+
+ROLE: You are a Spring service-layer developer implementing business logic.
+
+Implement:
+- `CommonResponse initiateEmailUpdate(InitiateEmailUpdateRequest request)`
+- `CommonResponse confirmEmailUpdate(VerifyOtpRequest request)`
+
+DETAILED STEPS:
+
+initiateEmailUpdate:
+1. Lookup user as member first: `userRepository.findByEmailOrMobile(request.userId(), request.userId())`, fallback to non-member lookup.
+2. If not found → return 404 with constant `USER_NOT_FOUND`.
+3. Validate `currentPassword` using `passwordEncoder.matches(...)`.
+   - If incorrect: record failed attempt (`LoginAttemptTracker.recordFailedAttempt(user)`), save, return 401 with constant `INCORRECT_PASSWORD_TRY_AGAIN`.
+4. On success: reset failed attempts and save user.
+5. Validate `newEmail` format (contains `@` and basic regex). If invalid → return 400 with appropriate constant (e.g., `INVALID_EMAIL`).
+6. Check duplicate email across member and non-member tables.
+   - If already registered (and not the same user) → return 409 with `EMAIL_ALREADY_REGISTERED` constant.
+7. Build immutable `userData` map:
+   - `{ "userId": user.getId().toString(), "userType":"MEMBER"|"NON_MEMBER", "deviceId": RequestContext.getDeviceId(), "oldEmail": user.getEmail(), "newEmail": newEmail }`
+8. Call `otpService.generateOtp(identifier = newEmail, email = newEmail, mobile = null, userData)` — OTP sent to new email.
+9. Return the `CommonResponse` from `otpService` (contains otpRefId).
+
+confirmEmailUpdate:
+1. Call `otpService.verifyOtp(request)`; if unsuccessful, return the verifyResponse.
+2. Cast `OtpResponse` and get newOtpRefId; then fetch `userData` via `otpService.getUserDataByRefId(newOtpRefId)`. If missing → 400 with `EMAIL_UPDATE_OTP_SESSION_EXPIRED`.
+3. Extract `userId` from userData; parse to Long or return 400 with `EMAIL_UPDATE_INVALID_USERID_IN_OTP`.
+4. Extract `userType`, `oldEmail`, `newEmail`.
+5. Re-check duplicate on `newEmail` to avoid race; if conflict → 409 with `EMAIL_ALREADY_REGISTERED`.
+6. Load user entity by id; if missing → 404.
+7. Update user email: `user.setEmail(newEmail)`. If username equals oldEmail (or username blank), update username to newEmail.
+8. Persist user (handle DB errors). On DB failure → 500 with constant `EMAIL_UPDATE_UPDATE_FAILED`.
+9. Cleanup OTP sessions: `otpService.cleanupOtp(request.otpRefId())` and `otpService.cleanupOtp(newOtpRefId)`.
+10. Send confirmation emails to both `oldEmail` and `newEmail` using `NotificationServiceClient.sendEmail(EmailRequest)` with subject and body from `Constants`.
+11. Return success with `Constants.EMAIL_UPDATE_SUCCESS`.
+
+EDGE CASES:
+- Network or email send failure: log but do not rollback update (best-effort).
+- OTP expired/invalid: propagate `otpService` error.
+- Duplicate found after verify (race): abort with 409 and message constant.
+- Ensure OTP expiry is 5 minutes (configured in `otpService` TTL).
+
+SECURITY:
+- Do not log passwords or full emails unnecessarily; mask where appropriate.
+- Use immutable `Map.of` for OTP session data.
+
+TRANSACTIONAL:
+- Ensure `confirmEmailUpdate` user update is transactional.
+
+---
+
+1.3 DTOs
+
+`InitiateEmailUpdateRequest`:
+```java
+public record InitiateEmailUpdateRequest(
+    @NotBlank String userId,
+    @NotBlank @Size(min=8,max=100) String currentPassword,
+    @NotBlank @Email String newEmail
+) {}
+```
+
+Use existing `VerifyOtpRequest` for confirm.
+
+---
+
+1.4 Request / Response examples
+
+Initiate request:
+```json
+{
+  "userId":"user@example.com",
+  "currentPassword":"SecurePass123!",
+  "newEmail":"new.email@example.com"
+}
+```
+
+Initiate success:
+```json
+{
+  "message":"OTP generated and sent successfully",
+  "otpRefId":"<otpRefId>"
+}
+```
+
+Confirm request:
+```json
+{
+  "otpRefId":"<otpRefId>",
+  "otp":"123456",
+  "flowType":"UPDATE_EMAIL"
+}
+```
+
+Confirm success:
+```json
+{
+  "message":"Email updated successfully!"
+}
+```
+
+Confirmation email details:
+- Subject: `Constants.EMAIL_UPDATE_SUBJECT` e.g., "Your MedGo email has been updated"
+- Body template in `Constants` with placeholders for oldEmail, newEmail, support contact, device id, timestamp.
+
+---
+
+1.5 Files to add/update
+- `AuthController.java` - add endpoints (initiate/confirm)
+- `RegistrationService.java` - add method signatures
+- `AuthServiceImpl.java` - implement `initiateEmailUpdate` & `confirmEmailUpdate`
+- `InitiateEmailUpdateRequest.java` - add DTO
+- `Constants.java` - add new messages:
+  - `EMAIL_UPDATE_SUCCESS`, `EMAIL_UPDATE_SUBJECT`, `EMAIL_UPDATE_BODY_TEMPLATE`, `EMAIL_ALREADY_REGISTERED`, `EMAIL_UPDATE_*_ERROR` constants.
+- `prompts/ashok/update_email_API_detailed_prompt_2026-02-10.txt` - (this file)
+
+---
+
+1.6 Testing notes
+- Unit tests for incorrect password attempts, duplicate email, OTP generation & verification, confirm flow updating DB and sending emails, and OTP expiry handling.
+- Integration test to run initiate -> verify end-to-end with mocked `OtpService` and `NotificationServiceClient`.
+
+---
+
+1.7 Summary
+This prompt mirrors the Update Mobile and Biometric prompts: clear controller/service responsibilities, DTOs, request/response examples, constants-driven messages, and testing guidance. Implement `initiateEmailUpdate` to send OTP to the new email and `confirmEmailUpdate` to persist and notify both old and new emails.
+
+
+
+

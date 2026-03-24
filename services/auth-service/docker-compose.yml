@@ -1,0 +1,43 @@
+version: '3.8'
+networks:
+  com.medgo.authnwk:
+    name: app
+    driver: bridge
+volumes:
+  postgres_data:
+    driver: local
+services:
+  auth-service:
+    image: com.medgo/auth-service:0.1.0
+    container_name: auth-service
+    ports:
+      - "14361:14361"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/authservicedb
+      SPRING_DATASOURCE_PASSWORD: hiFCCrdqvFns
+    networks:
+      - com.medgo.authnwk
+    depends_on:
+      - db
+    
+  db:
+    image: postgres:12.6
+    container_name: com.medgo.authdb
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - com.medgo.authnwk
+    ports:
+      - "15451:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: hiFCCrdqvFns
+      POSTGRES_DB: authservicedb
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 1m
+      timeout: 10s
+      retries: 2
+  

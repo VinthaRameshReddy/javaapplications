@@ -1,0 +1,305 @@
+steps:
+    - task: Bash@3
+      condition: ne(variables.isUat, 'true')
+      displayName: create repo in ECR
+      inputs:
+        targetType: 'inline'
+        script: |
+         
+          echo 
+          export AWS_ACCESS_KEY_ID=$(AWS_ACCESS_KEY_ID)
+          export AWS_DEFAULT_REGION=$(AWS_DEFAULT_REGION)
+          export AWS_SECRET_ACCESS_KEY=$(AWS_SECRET_ACCESS_KEY)
+          aws ecr create-repository --repository-name $(REPO_NAME) --image-tag-mutability IMMUTABLE --image-scanning-configuration scanOnPush=true --region $(AWS_DEFAULT_REGION)
+          aws ecr set-repository-policy --repository-name  $(REPO_NAME) --policy-text file://mybank/shared/utils/ecr-permissions-policy.json --region $(AWS_DEFAULT_REGION)
+         
+    - task: Bash@3
+      condition: ne(variables.isUat, 'true')
+      displayName: Pre-requisites
+      inputs:
+        targetType: 'inline'
+        script: 'cd $(workingDir)/ && chmod +x ./gradlew'
+    
+    - task: Cache@2
+      condition: ne(variables.isUat, 'true')
+      displayName: Configure gradle caching
+      inputs:
+        key: 'gradle | "$(Agent.OS)" | **/build.gradle'
+        restoreKeys: |
+          gradle | "$(Agent.OS)"
+          gradle
+        path: $(GRADLE_USER_HOME)
+    
+    - task: SonarQubePrepare@4
+      condition: ne(variables.isUat, 'true')
+      inputs:
+        SonarQube: 'SonarQube-MB2.0'
+        scannerMode: 'Other'
+        extraProperties: |
+          sonar.projectKey=$(SonarProjectKey)
+          sonar.log.level=DEBUG
+      
+    - task: Bash@3
+      condition: ne(variables.isUat, 'true')
+      displayName: Removing Branch Name
+      inputs:
+        targetType: 'inline'
+        script: |
+          #!/bin/bash
+          cd $(workingDir);
+          var=`gradle printVersion | awk '/printVersion/{getline;print}'`
+          tag=`echo "v"$var-$(Build.BuildId)`
+          echo "##vso[task.setvariable variable=tag]$tag"
+          TEMP_VAR=`echo $SONARQUBE_SCANNER_PARAMS | sed 's/"sonar.branch.name".*,"sonar.scanner/"sonar.scanner/g'`
+          echo "##vso[task.setvariable variable=SONARQUBE_SCANNER_PARAMS]$TEMP_VAR"
+          echo $tag 
+    
+    - task: fortifyvsts.hpe-security-fortify-vsts.build-task-fortify-sca.FortifySCA@7
+      condition: and(always(), eq(variables['Build.Reason'], 'Schedule'))
+      displayName: 'Run Fortify on '
+      inputs:
+        applicationType: other
+        fortifySourceTranslate: '**/*'
+        fortifyBuildId: $(service-name)
+        fortifyScanType: LocalScan
+        additionalScanParams: '-debug'
+
+    - script: 'BIRTReportGenerator -template "Developer Workbook" -source $(build.artifactstagingdirectory)/sca_artifacts/$(service-name).fpr -output $(build.artifactstagingdirectory)/sca_artifacts/$(service-name).pdf -format PDF -showSuppressed –UseFortifyPriorityOrder'
+      condition: and(always(), eq(variables['Build.Reason'], 'Schedule'))
+      displayName: 'Command Line Script'
+
+    - task: PublishBuildArtifacts@1
+      condition: and(always(), eq(variables['Build.Reason'], 'Schedule'))
+      displayName: 'Publish Artifact: fortify-report-drop' 
+
+    
+
+   
+
+    - task: Gradle@2
+      condition: and(ne(variables['Build.Reason'], 'PullRequest'), ne(variables.isUat, 'true'))
+      displayName: Gradle Build
+      inputs:
+        cwd: $(workingDir)
+        workingDirectory: $(workingDir)
+        gradleWrapperFile: "$(workingDir)/gradlew"
+        gradleOptions: '-Xmx1024m'
+        tasks: 'clean build'
+        options: '--build-cache'
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: 'default'
+        jdkArchitectureOption: 'x64'
+        publishJUnitResults: true
+        testResultsFiles: '**/TEST-*.xml'
+        sonarQubeRunAnalysis: true
+        sqGradlePluginVersionChoice: 'build'
+        spotBugsAnalysis: false
+
+    - task: Gradle@2
+      condition: eq(variables['Build.Reason'], 'PullRequest')
+      displayName: Pull Request Gradle Build
+      inputs:
+        cwd: $(workingDir)
+        workingDirectory: $(workingDir)
+        gradleWrapperFile: "$(workingDir)/gradlew"
+        gradleOptions: '-Xmx1024m'
+        tasks: 'clean build'
+        options: '--build-cache'
+        javaHomeOption: 'JDKVersion'
+        jdkVersionOption: 'default'
+        jdkArchitectureOption: 'x64'
+        publishJUnitResults: true
+        testResultsFiles: '**/TEST-*.xml'
+
+    - task: SonarQubePublish@4
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      inputs:
+        pollingTimeoutSec: '300'
+    
+    - task: AzureCLI@2
+      displayName: Assess SonarQube Results
+      inputs:
+        azureSubscription: 'Microsoft Azure DevOps (39ac6650-eb05-4bc6-abb3-5751abf3df0e)'
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          cd kotak-mb-ms/shared/scripts
+          ./get-sonarqube-quality-gate-status.ps1 -SonarServerName $(SonarServerName) -SonarProjectKey $(SonarProjectKey) -SonarToken $(SonarToken)
+
+
+    - task: Docker@2
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      displayName: Docker Build
+      inputs:
+        repository: $(DOCKER_REPOSITORY)
+        command: 'build'
+        Dockerfile: '$(Build.SourcesDirectory)/$(workingDir)/$(DOCKERFILELOC)/Dockerfile'
+        buildContext: '$(Build.SourcesDirectory)/$(workingDir)/build'
+        imageName: '$(imageName)'
+        tags: |
+          $(tag)
+
+
+    - task: ECRPushImage@1
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      displayName: Docker Push
+      inputs:
+        awsCredentials: '$(AWS_CREDENTIAL)'
+        regionName: '$(AWS_DEFAULT_REGION)'
+        imageSource: 'imagename'
+        sourceImageName: '$(DOCKER_REPOSITORY)'
+        sourceImageTag: '$(tag)'
+        repositoryName: '$(REPO_NAME)'
+        pushTag: '$(tag)'
+        autoCreateRepository: true      
+
+    - task: Bash@3
+      condition: eq(variables.isUat, 'true')
+      displayName: Checking latest image in ECR
+      inputs:
+         targetType: 'inline'
+         script: |
+             MAINTAG=`aws ecr describe-images --repository-name $(REPO_NAME) --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' --output text`
+             echo "##vso[task.setvariable variable=MAINTAG]$MAINTAG"
+      env:
+        AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)
+        AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+        AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+
+    - task: ECRPullImage@1
+      condition: eq(variables.isUat, 'true')
+      inputs:
+        awsCredentials: 'KOTAK-ECR-AUTH-SERVICE'
+        regionName: 'ap-south-1'
+        repository: '$(REPO_NAME)'
+        imageSource: 'imagetag'
+        imageTag: '$(MAINTAG)'
+
+    - task: Bash@3
+      condition: eq(variables.isUat, 'true')
+      displayName: Filtering Tag for UAT
+      inputs:
+         targetType: 'inline'
+         script: |
+           UATTAG=`echo $(MAINTAG) | awk -F'-' '{print $1}'`
+           echo $UATTAG
+           echo "##vso[task.setvariable variable=UATTAG]$UATTAG"
+
+
+    - task: ECRPushImage@1
+      condition: eq(variables.isUat, 'true')
+      displayName: Image Push for UAT
+      inputs:
+        awsCredentials: '$(AWS_CREDENTIAL)'
+        regionName: '$(AWS_DEFAULT_REGION)'
+        imageSource: 'imagename'
+        sourceImageName: '$(DOCKER_REPOSITORY)'
+        sourceImageTag: '$(MAINTAG)'
+        repositoryName: '$(REPO_NAME)'
+        pushTag: '$(UATTAG)'
+        autoCreateRepository: true
+     
+    - task: PythonScript@0
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      displayName: Docker Image Scan
+      inputs:
+        scriptSource: 'filePath'
+        scriptPath: '$(sharedScripts)/dockerVulnerabilities.py'
+        pythonInterpreter: '/usr/bin/python3'
+      env:
+        AWS_DEFAULT_REGION: $(AWS_DEFAULT_REGION)
+        BUILD_VERSION: $(tag)
+        AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+        AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+
+
+    - task: Bash@3
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      displayName: Writing Tag for Main branch
+      inputs:
+         targetType: 'inline'
+         script: |
+           echo $(tag) > $(workingDir)/TagFile
+
+    - task: Bash@3
+      condition: eq(variables.isUat, 'true')
+      displayName: Writing Tag for UAT branch
+      inputs:
+         targetType: 'inline'
+         script: |
+           echo $(UATTAG) > $(workingDir)/UATTagFile 
+    
+    - task: Bash@3
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      displayName: Docker tag update in values.yaml in kotak-mb-platform
+      inputs:
+        targetType: 'inline'
+        script: |
+          APPLICATION_YAML="./kotak-mb-platform/envs/dev/03-applications/$(service-name)/values.yaml"
+          sed -i 's/tag.*/tag: "$(tag)"/' ${APPLICATION_YAML}
+          cat ${APPLICATION_YAML}
+          cd .
+          ls -lrt
+          cd kotak-mb-platform
+          git checkout -b addtag-$(Build.BuildId)
+          git add .
+          git commit -m "image tag update" 
+          git push --set-upstream origin addtag-$(Build.BuildId)
+    
+
+    - task: Bash@3
+      #condition: eq(variables.isUat, 'true')
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      displayName: Docker tag update in values.yaml in kotak-mb-platform
+      inputs:
+        targetType: 'inline'
+        script: |
+          APPLICATION_YAML="./kotak-mb-platform/envs/uat/03-applications/$(service-name)/values.yaml"
+          sed -i 's/tag.*/tag: "$(tag)"/' ${APPLICATION_YAML}
+          cat ${APPLICATION_YAML}
+          cd .
+          ls -lrt
+          cd kotak-mb-platform
+          git checkout -b addtaguat-$(Build.BuildId)
+          git add .
+          git commit -m "image tag update" 
+          git push --set-upstream origin addtaguat-$(Build.BuildId)
+   ##     sed -i 's/tag.*/tag: "$(UATTAG)"/' ${APPLICATION_YAML}
+    
+
+    - task: PublishBuildArtifacts@1
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      displayName: 'Publish Artifact: TagFile'
+      inputs:
+         PathtoPublish: '$(workingDir)/TagFile'
+         ArtifactName: TagFile
+
+    - task: PublishBuildArtifacts@1
+      condition: eq(variables.isUAT, 'true')
+      displayName: 'Publish Artifact: TagFile'
+      inputs:
+         PathtoPublish: '$(workingDir)/UATTagFile'
+         ArtifactName: UATTagFile
+
+    - task: Bash@3
+      condition: or(and(succeeded(), eq(variables.isMain, 'true')),eq(variables.isUat, 'true'))
+      displayName: Create Automatic PR
+      inputs:
+        targetType: 'inline'
+        script: 'az config set extension.use_dynamic_install=yes_without_prompt && echo $(AZURE_DEVOPS_EXT_PAT) | az devops login --organization=https://dev.azure.com/kmbl-devops && az devops configure -d organization=https://dev.azure.com/kmbl-devops project="Mobile Banking 2.0" && az repos pr create --repository kotak-mb-platform --source-branch addtag-$(Build.BuildId) --target-branch master --open --auto-complete true --delete-source-branch true --squash true'
+    
+    - task: Bash@3
+      condition: or(and(succeeded(), eq(variables.isMain, 'true')),eq(variables.isUat, 'true'))
+      displayName: Create Automatic PR for UAT tag (temp)
+      inputs:
+        targetType: 'inline'
+        script: 'az config set extension.use_dynamic_install=yes_without_prompt && echo $(AZURE_DEVOPS_EXT_PAT) | az devops login --organization=https://dev.azure.com/kmbl-devops && az devops configure -d organization=https://dev.azure.com/kmbl-devops project="Mobile Banking 2.0" && az repos pr create --repository kotak-mb-platform --source-branch addtaguat-$(Build.BuildId) --target-branch master --open --auto-complete true --delete-source-branch true --squash true'
+    
+    - task: Bash@3
+      condition: and(succeeded(), eq(variables.isMain, 'true'))
+      displayName: Add sleep time
+      inputs:
+        targetType: 'inline'
+        script: 'sleep 30'
+    
+    

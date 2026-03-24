@@ -1,0 +1,15 @@
+Cross-service: JWT integration & token flows
+Original file: jwt-integration-flow-prompts.txt
+
+Scope:
+Provide authoritative prompts that describe how JWT/token flows should be implemented and integrated across services.
+
+Instructions:
+1. For services that issue or consume JWTs (auth-service, others), extract token formats, signing keys, and validation flows from repository code (keys, utilities, filters).
+2. Create per-endpoint prompts that require regeneration of services to ensure token generation/validation is interoperable and secure.
+3. Include key rotation, expiry, refresh, and revocation best-practices in prompts.
+
+Output:
+- Git-style patches per-service that implement consistent JWT flows, tests, and README instructions for key rotation and environment config.
+
+Regenerate now.

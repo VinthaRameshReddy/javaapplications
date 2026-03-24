@@ -1,0 +1,13 @@
+rootProject.name = 'auditing-utils'
+
+//includeBuild '../../shared/event-publisher'
+includeBuild '../../shared/common-objects'
+//enableFeaturePreview("VERSION_CATALOGS")
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files("../../gradle/libs.versions.toml"))
+        }
+    }
+}
+

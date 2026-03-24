@@ -1,0 +1,13 @@
+rootProject.name = 'membership-service'
+
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files("../../gradle/libs.versions.toml"))
+        }
+    }
+}
+
+includeBuild("../../shared/common-objects") // Points to C:\medigo2.0\shared\common-objects
+includeBuild("../../shared/logging-utils") // Points to C:\medigo2.0\shared\logging-utils

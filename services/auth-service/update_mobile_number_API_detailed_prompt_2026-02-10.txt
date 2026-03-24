@@ -1,0 +1,189 @@
+1. /member/updateMobile API - Update Mobile Number (2026-02-10) --> create api based on this prompt
+
+Purpose
+Securely update a user's mobile number by verifying current password, sending OTP to the *new* number, and confirming the change. Provide clear error messages, handle edge cases (duplicate number, OTP expiry, network), and send confirmation email after successful update.
+
+---
+
+1.1 Controller Layer -
+
+ROLE: You are a Java Spring Boot backend developer specifying controller-layer behavior.
+
+TASK: Explain controller behavior for both endpoints:
+- POST /api/v1/auth/member/updateMobile/initiate
+- POST /api/v1/auth/member/updateMobile/confirm
+
+CONTEXT:
+- Controller class: `AuthController`
+- Request DTOs:
+  - `InitiateMobileUpdateRequest { userId, currentPassword, newMobile }`
+  - `VerifyOtpRequest { otpRefId, otp, flowType }` (use flowType = "UPDATE_MOBILE" for confirm)
+- Annotations: `@PostMapping`, `@EncryptResponse`, `@DecryptBody`, `@Valid`
+- Responses: `CommonResponse` (success/error), `ResponseEntity<CommonResponse>` where token header needed
+
+WHAT HAPPENS IN CONTROLLER - STEP BY STEP:
+1. HTTP POST received and dispatched to appropriate method:
+   - `initiateUpdateMobile(...)` or `confirmUpdateMobile(...)`
+2. `@DecryptBody` decrypts request; `@Valid` triggers validation
+3. Log minimal identifying info (userId or otpRefId) but not sensitive data
+4. For `initiate`:
+   - Validate `DeviceId` header using `SecurityValidationUtil.validateDeviceId()`; return early if invalid
+   - Call `registrationService.initiateMobileUpdate(request)`
+   - Return `CommonResponse` from service (controller should not duplicate business logic)
+5. For `confirm`:
+   - No device validation required beyond existing filters
+   - Call `registrationService.confirmMobileUpdate(request)`
+   - Return `CommonResponse` (service will manage token/header placement if needed)
+
+METHOD SIGNATURES (controller):
+```java
+@PostMapping("/member/updateMobile/initiate")
+@EncryptResponse
+public CommonResponse initiateUpdateMobile(@Valid @DecryptBody(InitiateMobileUpdateRequest.class) InitiateMobileUpdateRequest request)
+
+@PostMapping("/member/updateMobile/confirm")
+@EncryptResponse
+public CommonResponse confirmUpdateMobile(@Valid @DecryptBody(VerifyOtpRequest.class) VerifyOtpRequest request)
+```
+
+CLASSES INVOLVED:
+- `AuthController`
+- `RegistrationService` (interface)
+- `AuthServiceImpl` (service implementation)
+- `OtpService` (generate/verify/cleanup OTP)
+- `NotificationServiceClient` (send email)
+- `RequestContext` (deviceId)
+- `CommonResponse` / `ErrorResponse`
+
+---
+
+1.2 Service Layer - Detailed Implementation Prompt
+
+ROLE: You are a Spring service-layer developer implementing business logic.
+
+TASK: Implement two service methods in `AuthServiceImpl`:
+- `CommonResponse initiateMobileUpdate(InitiateMobileUpdateRequest request)`
+- `CommonResponse confirmMobileUpdate(VerifyOtpRequest request)`
+
+REQUIREMENTS / STEP-BY-STEP:
+
+initiateMobileUpdate:
+1. Find user by `userRepository.findByEmailOrMobile(request.userId(), request.userId())` and fallback to non-member repo.
+2. If not found → return 404 with constant `USER_NOT_FOUND`.
+3. Validate `currentPassword` using `passwordEncoder.matches(...)`.
+   - If incorrect: record failed attempt using `LoginAttemptTracker.recordFailedAttempt(user)` and save user; return 401 with constant `INCORRECT_PASSWORD_TRY_AGAIN`.
+4. On success: `LoginAttemptTracker.resetFailedAttempts(user)` and save.
+5. Normalize `newMobile` (recommended) prior to duplicate checks and OTP generation.
+6. Check duplicates across both member and non-member tables using normalized number.
+   - If duplicate (and belongs to different user) → return 409 with constant `MOBILE_UPDATE_NUMBER_ALREADY_REGISTERED`.
+7. Build immutable `userData` map (avoid mutable HashMap):
+   - `{ "userId": user.getId().toString(), "userType": "MEMBER"|"NON_MEMBER", "deviceId": RequestContext.getDeviceId(), "email": user.getEmail(), "mobile": normalizedNewMobile }`
+8. Call `otpService.generateOtp(identifier = normalizedNewMobile, email = user.getEmail(), mobile = normalizedNewMobile, userData)`
+9. Return the `CommonResponse` from `otpService` (contains otpRefId)
+
+confirmMobileUpdate:
+1. Call `otpService.verifyOtp(request)`; if not success, return verifyResponse.
+2. Extract `OtpResponse` from verifyResponse and get new otpRefId.
+3. Retrieve `userData` via `otpService.getUserDataByRefId(newOtpRefId)`. If missing → return 400 with `MOBILE_UPDATE_OTP_SESSION_EXPIRED`.
+4. Extract `userId` from `userData`; validate/parse to Long else return 400 with `MOBILE_UPDATE_INVALID_USERID_IN_OTP`.
+5. Extract `userType` and `mobile` from `userData`.
+6. Normalize mobile before persisting (same normalization as initiate).
+7. Load the user entity by id from correct repository; if not found → 404.
+8. Update `user.setMobile(normalizedMobile)`; if `user.getEmail()` is blank, also update `user.setUsername(normalizedMobile)`.
+9. Persist the user entity (catch DB errors such as truncation; return 500 with `MOBILE_UPDATE_UPDATE_FAILED` on failure).
+10. Cleanup both OTP sessions: `otpService.cleanupOtp(request.otpRefId())` and `otpService.cleanupOtp(newOtpRefId)`.
+11. Send confirmation email (use `NotificationServiceClient.sendEmail(EmailRequest)`), with subject and body from `Constants.*` templates; mask mobile in body.
+12. Return success message using `Constants.MOBILE_UPDATE_SUCCESS`.
+
+EDGE CASES:
+- Duplicate number found during confirm (race): fail with 409 and `MOBILE_UPDATE_NUMBER_ALREADY_REGISTERED`.
+- OTP expired / invalid: returned by `otpService.verifyOtp` (propagate error).
+- DB truncation: catch data access exception, log and return `MOBILE_UPDATE_UPDATE_FAILED`.
+- Network/email failure: log but do not fail the mobile update (best-effort).
+
+SECURITY:
+- Never log full mobile or password. Log only userId/ids and otpRefId.
+- Use normalized E.164 storage for mobile to ensure consistent duplicates/lookup.
+- Use immutable `Map.of` for OTP session data to avoid accidental mutation.
+
+TRANSACTIONAL:
+- `confirmMobileUpdate` must be transactional for the user update step.
+
+---
+
+1.3 DTO Layer (request/response) prompt
+
+Create or validate DTOs:
+- `InitiateMobileUpdateRequest`:
+```java
+public record InitiateMobileUpdateRequest(
+    @NotBlank String userId,
+    @NotBlank @Size(min=8,max=100) String currentPassword,
+    @NotBlank String newMobile
+) {}
+```
+- `VerifyOtpRequest` already exists and should be used for confirm.
+
+Response: reuse `CommonResponse` and `ErrorResponse` types already in project.
+
+---
+
+1.4 Request / Response examples
+
+Initiate (request):
+```json
+{
+  "userId":"user@example.com",
+  "currentPassword":"SecurePass123!",
+  "newMobile":"+63 912 345 6789"
+}
+```
+Initiate (success):
+```json
+{
+  "message":"OTP generated and sent successfully",
+  "otpRefId":"<otpRefId>"
+}
+```
+Confirm (request):
+```json
+{
+  "otpRefId":"<otpRefId>",
+  "otp":"123456",
+  "flowType":"UPDATE_MOBILE"
+}
+```
+Confirm (success):
+```json
+{
+  "message":"Mobile number updated successfully!"
+}
+```
+
+---
+
+1.5 Files to create/update
+- `AuthController.java` - add endpoints (if not present)
+- `RegistrationService.java` - add signatures
+- `AuthServiceImpl.java` - implement `initiateMobileUpdate` & `confirmMobileUpdate`
+- `InitiateMobileUpdateRequest.java` - DTO
+- `prompts/ashok/update_mobile_number_API_detailed_prompt_2026-02-10.txt` - (this file)
+- `Constants.java` - add messages (already present) and avoid literals
+
+---
+
+1.6 Testing notes
+- Add unit tests for:
+  - Incorrect password (3 attempts handling)
+  - Duplicate mobile rejection
+  - Successful OTP generation (initiate) — assert `otpService.generateOtp` called with normalized mobile and correct userData
+  - Successful confirm updates DB and sends email
+  - OTP expiry path
++- Add an integration test that runs the initiate and confirm flow end-to-end against an in-memory DB and a mocked `OtpService`.
+
+---
+
+1.7 Summary
+This prompt mirrors the biometric prompt structure: clear controller & service responsibilities, DTOs, request/response examples, error/edge case handling, and files to change. Implement `normalizeMobile()` helper and ensure constants are used for all user-facing messages.
+
+

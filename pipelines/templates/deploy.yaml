@@ -1,0 +1,104 @@
+parameters:
+  dockerRegistryEndpoint: ''
+  imagePullSecrets: ''
+  imageName: ''
+  azureSubscription: ''
+  serviceName: ''
+  chartPath: '' 
+  propsfile: ''
+  targetEnvironment: ''  # 'prod', 'external', or 'shared'
+
+jobs:
+- job: SetVariables
+  pool:
+    name: vm-mpi-sea-a-med2g01-new
+  steps:
+    - script: |
+        echo "Branch Name: $(Build.SourceBranchName)"
+        echo "Target Environment: ${{ parameters.targetEnvironment }}"
+
+        if [ "${{ parameters.targetEnvironment }}" = "prod" ] || [ "$(Build.SourceBranchName)" = "master" ]; then
+          echo "Setting variables for PROD environment..."
+          echo "##vso[task.setvariable variable=appprop;isOutput=true]${{ parameters.propsfile }}-prod"
+          echo "##vso[task.setvariable variable=namespace;isOutput=true]medgo-prd"
+          echo "##vso[task.setvariable variable=aksResourceGroup;isOutput=true]mmc-aks-rg-sea-03"
+          echo "##vso[task.setvariable variable=aksCluster;isOutput=true]aks-medgo-abcd"
+          echo "##vso[task.setvariable variable=envprofile;isOutput=true]application-prod.properties"
+
+        elif [ "${{ parameters.targetEnvironment }}" = "external" ]; then
+          echo "Setting variables for external environment..."
+          echo "##vso[task.setvariable variable=appprop;isOutput=true]${{ parameters.propsfile }}-stg"
+          echo "##vso[task.setvariable variable=namespace;isOutput=true]medgo-stg"
+          echo "##vso[task.setvariable variable=aksResourceGroup;isOutput=true]mc-aks-rg-sea-03"
+          echo "##vso[task.setvariable variable=aksCluster;isOutput=true]aks-mpi-sea-a-med2g01"
+          echo "##vso[task.setvariable variable=envprofile;isOutput=true]application-stg.properties"
+
+        else
+          echo "Setting variables for shared environment..."
+          echo "##vso[task.setvariable variable=appprop;isOutput=true]${{ parameters.propsfile }}-stg"
+          echo "##vso[task.setvariable variable=namespace;isOutput=true]medgo-stg"
+          echo "##vso[task.setvariable variable=aksResourceGroup;isOutput=true]rg-mpi-sea-d-shared-aks01"
+          echo "##vso[task.setvariable variable=aksCluster;isOutput=true]aks-mpi-sea-a-shared01"
+          echo "##vso[task.setvariable variable=envprofile;isOutput=true]application-stg.properties"
+        fi
+      name: setvars
+
+- job: Deploy
+  dependsOn: SetVariables
+  pool:
+    name: vm-mpi-sea-a-med2g01-new
+  variables:
+    appprop: $[ dependencies.SetVariables.outputs['setvars.appprop'] ]
+    aksCluster: $[ dependencies.SetVariables.outputs['setvars.aksCluster'] ]
+    aksResourceGroup: $[ dependencies.SetVariables.outputs['setvars.aksResourceGroup'] ]
+    namespace: $[ dependencies.SetVariables.outputs['setvars.namespace'] ]
+    envprofile: $[ dependencies.SetVariables.outputs['setvars.envprofile'] ]
+
+  steps:
+  - task: AzureCLI@2
+    displayName: 'Fetch and save app secrets'
+    inputs:
+      azureSubscription: ${{ parameters.azureSubscription }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        echo "Fetching Key Vault secrets for $(appprop)..."
+        az keyvault secret show \
+          --vault-name kv-mp01-sea-a-med2g01 \
+          --name $(appprop) \
+          --query value -o tsv > application.properties
+        echo "application.properties created successfully."
+        ls -lh application.properties
+
+  - task: AzureCLI@2
+    name: SetAKSContext
+    displayName: 'Set AKS Context'
+    inputs:
+      azureSubscription: ${{ parameters.azureSubscription }}
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        echo "Setting AKS context..."
+        echo "Resource Group: $(aksResourceGroup)"
+        echo "Cluster Name: $(aksCluster)"
+        az aks get-credentials --resource-group $(aksResourceGroup) --name $(aksCluster) --overwrite-existing
+        kubectl config current-context
+
+  - task: HelmDeploy@0
+    displayName: 'Deploy Helm Chart to AKS'
+    inputs:
+      connectionType: 'Azure Resource Manager'
+      azureSubscription: ${{ parameters.azureSubscription }}
+      azureResourceGroup: $(aksResourceGroup)
+      kubernetesCluster: $(aksCluster)
+      namespace: $(namespace)
+      command: 'upgrade'
+      chartType: 'FilePath'
+      chartPath: '${{ parameters.chartPath }}'
+      releaseName: '${{ parameters.propsfile }}'
+      install: true
+      arguments: >-
+        --set image.repository=acrmpiseaashared01.azurecr.io/${{ parameters.imageName }}
+        --set image.tag=$(Build.BuildId)
+        --set-file appProperties=application.properties
+        --set env.name=$(envprofile)

@@ -1,0 +1,82 @@
+/admin-action-audit/get API -03-01-2026-->create api based on this prompt
+
+AI Prompt Template – Controller Layer (POST-only)
+
+
+TASK:
+Generate a detailed controller-layer prompt for the `/admin-action-audit/get` endpoint following the standardized POST-only API template.
+
+CONTEXT:
+- Controller class: `UserActionLogController`
+- Endpoint: `POST /api/v1/logs/admin-action-audit/get`
+- Request DTO: `GetUserActionLogRequest` with field: `id`
+- Flow: Controller → Service → Repository. Controller must be thin.
+- Response wrapper: `CommonResponse`
+
+REQUIREMENTS:
+- Use POST-only endpoint (`/admin-action-audit/get`).
+- Decrypt request with `@DecryptBody(GetUserActionLogRequest.class)`.
+- Validate inputs with `@Valid` and bean validation (`@NotBlank` on `id`).
+- Enforce admin authorization at controller or security layer (`@PreAuthorize("hasRole('ADMIN')")`).
+- Log `traceId` and minimal identifiers only: `traceId={} | method=getAdminActionAudit | id={}` (mask if sensitive).
+- Delegate to `userActionLogService.getAdminActionAudit(request)`.
+- Return `CommonResponse`; apply `@EncryptResponse` if configured.
+
+OUTPUT FORMAT:
+- A prompt suitable for AI to generate the controller method and signature, plus a short snippet.
+
+METHOD SIGNATURE (reference):
+```java
+@PostMapping("/admin-action-audit/get")
+@EncryptResponse
+@PreAuthorize("hasRole('ADMIN')")
+public CommonResponse getAdminActionAudit(@Valid @DecryptBody(GetUserActionLogRequest.class) GetUserActionLogRequest request)
+```
+
+SHORT EXAMPLE SNIPPET:
+```java
+String traceId = RequestContext.getTraceId();
+log.info("traceId={} | method=getAdminActionAudit | id={}", traceId, maskId(request.getId()));
+CommonResponse response = userActionLogService.getAdminActionAudit(request);
+return response;
+```
+
+NOTES:
+- Ensure returned audit record is sanitized to remove or mask PII before returning.
+
+Layered Prompt Model (All Layers)
+
+1) Controller Layer
+ROLE: Senior Java Spring Boot developer.
+TASK: Generate `UserActionLogController.getAdminActionAudit` POST endpoint.
+OUTPUT: Controller snippet and signature (see above).
+
+2) Service Layer
+ROLE: Service developer.
+TASK: Implement `userActionLogService.getAdminActionAudit(GetUserActionLogRequest)`.
+REQUIREMENTS: Lookup by id, sanitize PII, handle not-found.
+OUTPUT: Service skeleton and exception mapping.
+
+3) Repository Layer
+ROLE: Persistence engineer.
+TASK: `AuditRepository.findById(...)`.
+OUTPUT: Repository interface example.
+
+4) DTO Layer
+ROLE: DTO author.
+TASK: `GetUserActionLogRequest` and `AdminActionAuditResponse` with validations.
+OUTPUT: DTO examples.
+
+5) Utilities
+TASK: `AuditSanitizer`, `MaskingUtil`.
+OUTPUT: Utility signatures.
+
+6) Tests
+TASK: Unit and WebMvc tests for controller and service.
+OUTPUT: Test skeletons.
+
+7) Docs
+TASK: Provide OpenAPI snippet and an example masked response.
+OUTPUT: Markdown snippet.
+
+

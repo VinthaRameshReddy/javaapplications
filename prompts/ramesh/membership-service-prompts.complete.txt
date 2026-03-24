@@ -1,0 +1,21 @@
+Service group: membership-service
+Original file: membership-service-prompts.txt
+
+Scope:
+Produce full per-endpoint regeneration prompts for `membership-service`.
+
+Instructions:
+1. For every controller in `services/membership-service/src/main/java/**/controller`, create a standalone prompt that:
+   - Extracts endpoint signatures and DTO fields where present.
+   - If DTOs are missing, infer fields and provide JSON schema.
+   - Specifies validation, security checks, and expected errors.
+   - Requests a git-style patch regenerating the whole service (code, tests, configs).
+2. Preserve Feign and proxy behaviors, package names, and build setup.
+
+Non-functional:
+- Java 17, Spring Boot 3.x; unit and integration tests required.
+
+Output:
+- Per-endpoint prompt files under `prompts/ramesh/` named `ramesh-membership-<controller>-<endpoint>.complete.md`.
+
+Regenerate now.

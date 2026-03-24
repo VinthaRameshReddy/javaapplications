@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>All Non-Shared Services API Catalog (excluding notification-service & filemanagement-service)</title>
+  <style>
+    body{font-family: Arial,Helvetica,sans-serif;line-height:1.45;margin:24px;}
+    h1,h2,h3{color:#113;}
+    pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto;}
+    .endpoint{border:1px solid #e1e4e8;padding:12px;margin:12px 0;border-radius:6px;}
+    .meta{font-size:0.95em;color:#444;}
+    .svg-box{border:1px solid #ddd;padding:8px;margin:8px 0;background:#fff;}
+    .service{margin-bottom:28px;}
+  </style>
+</head>
+<body>
+  <h1>All Non-Shared Services API Catalog</h1>
+  <p>Generated from repository scan. This document covers all top-level services under <code>services/</code> except any <code>shared-*</code> services and excluding <code>services/notification-service</code> and <code>services/filemanagement-service</code>.</p>
+  <p>For each endpoint: path, brief purpose, example request/response and a simple SVG flowchart illustrating request -> service -> downstream calls. Request/response examples are representative; inspect DTO classes for exact field constraints.</p>
+
+  <!-- Auth Service -->
+  <section class="service" id="auth-service">
+    <h2>Auth Service (auth-service)</h2>
+    <p class="meta">Base path: <code>/api/v1/auth</code></p>
+
+    <div class="endpoint">
+      <h3>POST /api/v1/auth/login/member</h3>
+      <p>Member login (password or OTP). Issues JWT bound to deviceId and includes username claim (email/mobile).</p>
+      <strong>Request (JSON)</strong>
+      <pre>{
+  "email": "user@example.com",
+  "password": "secret-or-empty-if-otp",
+  "deviceId": "device-abc-123",
+  "otp": "123456" 
+}</pre>
+      <strong>Response (success)</strong>
+      <pre>{
+  "statusCode":"200",
+  "response":"SUCCESS",
+  "data": {
+    "accessToken":"&lt;jwt-token&gt;",
+    "expiresIn":3600,
+    "memberCode":"M123"
+  }
+}</pre>
+      <div class="svg-box">
+        <!-- SVG flowchart: client -> auth -> jwt util -->
+        <svg width="640" height="120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="login flow">
+          <rect x="16" y="24" width="140" height="48" fill="#e8f4fd" stroke="#7fb1e6"/>
+          <text x="36" y="54" font-family="sans-serif" font-size="12">Client</text>
+          <rect x="220" y="12" width="200" height="72" fill="#f0f8ec" stroke="#86c27a"/>
+          <text x="260" y="44" font-family="sans-serif" font-size="12">AuthController / RegistrationService</text>
+          <rect x="460" y="24" width="150" height="48" fill="#fff4e6" stroke="#f0b66a"/>
+          <text x="478" y="54" font-family="sans-serif" font-size="12">JwtTokenUtil</text>
+          <line x1="156" y1="48" x2="220" y2="48" stroke="#333" marker-end="url(#arrow)"/>
+          <line x1="420" y1="48" x2="460" y2="48" stroke="#333" marker-end="url(#arrow)"/>
+          <line x1="610" y1="48" x2="650" y2="48" stroke="transparent"/>
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <h3>POST /api/v1/auth/logout</h3>
+      <p>Invalidate presented token. Body <code>userId</code> is username (email/mobile). Header <code>Authorization: Bearer &lt;token&gt;</code> required.</p>
+      <strong>Request (JSON)</strong>
+      <pre>{ "userId": "user@example.com" }</pre>
+      <strong>Response</strong>
+      <pre>{ "statusCode":"200", "response":"SUCCESS", "data": { "message":"User logged out successfully" } }</pre>
+      <div class="svg-box">
+        <svg width="700" height="120" xmlns="http://www.w3.org/2000/svg" aria-label="logout flow">
+          <rect x="10" y="24" width="140" height="48" fill="#e8f4fd" stroke="#7fb1e6"/>
+          <text x="36" y="54" font-family="sans-serif" font-size="12">Client</text>
+          <rect x="200" y="12" width="200" height="72" fill="#fff" stroke="#86c27a"/>
+          <text x="240" y="44" font-family="sans-serif" font-size="12">AuthController</text>
+          <rect x="420" y="12" width="220" height="72" fill="#fff" stroke="#f0b66a"/>
+          <text x="440" y="36" font-family="sans-serif" font-size="12">LogoutServiceImpl</text>
+          <text x="440" y="52" font-family="sans-serif" font-size="12">-> JwtTokenUtil.blacklistToken()</text>
+          <rect x="660" y="24" width="140" height="48" fill="#eef6ff" stroke="#7da6e6"/>
+          <text x="678" y="54" font-family="sans-serif" font-size="12">Redis (blacklist)</text>
+          <line x1="150" y1="48" x2="200" y2="48" stroke="#333" marker-end="url(#a)"/>
+          <line x1="400" y1="48" x2="420" y2="48" stroke="#333" marker-end="url(#a)"/>
+          <line x1="640" y1="48" x2="660" y2="48" stroke="#333" marker-end="url(#a)"/>
+          <defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
+        </svg>
+      </div>
+    </div>
+
+    <div class="endpoint">
+      <h3>Other auth endpoints</h3>
+      <p>Verify OTP, resend OTP, userDetails, biometric endpoints, consent endpoints. All follow same CommonResponse wrapper and use <code>@DecryptBody</code>/<code>@EncryptResponse</code> in production.</p>
+    </div>
+  </section>
+
+  <!-- Claims Service -->
+  <section class="service" id="claims-service">
+    <h2>Claims Service (claims-service)</h2>
+    <p class="meta">Base path: <code>/api/v1/reimbursement</code></p>
+
+    <div class="endpoint">
+      <h3>GET /api/v1/reimbursement/history?memberCode={memberCode}</h3>
+      <p>Fetch claims reimbursement history (proxied to reimbursements-service).</p>
+      <strong>Response</strong>
+      <pre>{
+  "statusCode":"200",
+  "response":"SUCCESS",
+  "data": { /* Map of lists keyed by status */ }
+}</pre>
+    </div>
+
+    <div class="endpoint">
+      <h3>POST /api/v1/reimbursement/submit (multipart/form-data)</h3>
+      <p>Submit reimbursement with JSON request part and optional files.</p>
+      <strong>Multipart example</strong>
+      <pre>--boundary
+Content-Disposition: form-data; name="request"
+
+{"memberCode":"M123","serviceType":"INPATIENT","totalAmount":1234.56}
+--boundary
+Content-Disposition: form-data; name="serviceInvoice"; filename="inv.pdf"
+Content-Type: application/pdf
+
+...binary...
+--boundary--</pre>
+      <strong>Response</strong>
+      <pre>{ "statusCode":"200","response":"SUCCESS","data": {"controlCode":"C12345","status":"SUBMITTED"} }</pre>
+      <div class="svg-box">
+        <svg width="720" height="160" xmlns="http://www.w3.org/2000/svg" aria-label="claims submit">
+          <rect x="10" y="16" width="140" height="48" fill="#e8f4fd" stroke="#7fb1e6"/><text x="36" y="46">Client</text>
+          <rect x="200" y="6" width="260" height="72" fill="#fff" stroke="#86c27a"/><text x="240" y="40">ReimbursementProxyController (validation)</text>
+          <rect x="480" y="16" width="200" height="48" fill="#fff4e6" stroke="#f0b66a"/><text x="500" y="46">ReimbursementsService (remote)</text>
+          <line x1="150" y1="40" x2="200" y2="40" stroke="#333" marker-end="url(#m)"/>
+          <line x1="460" y1="40" x2="480" y2="40" stroke="#333" marker-end="url(#m)"/>
+          <defs><marker id="m" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#333"/></marker></defs>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reimbursement Service -->
+  <section class="service" id="reimbursement-service">
+    <h2>Reimbursement Service (reimbursement-service)</h2>
+    <p class="meta">Base path: <code>/api/v1</code></p>
+    <div class="endpoint">
+      <h3>GET /api/v1/history?memberCode={memberCode}</h3>
+      <p>Return reimbursement history.</p>
+      <strong>Response</strong>
+      <pre>{
+  "statusCode":"200",
+  "response":"SUCCESS",
+  "data": { "open":[...], "closed":[...] }
+}</pre>
+    </div>
+  </section>
+
+  <!-- Provider Service -->
+  <section class="service" id="provider-service">
+    <h2>Provider Service (provider-service)</h2>
+    <p class="meta">Endpoints: <code>/v1/cities</code>, <code>/api/v1/provider/doctor</code>, <code>/api/v1/provider/hospital</code></p>
+    <div class="endpoint">
+      <h3>POST /v1/cities</h3>
+      <p>List cities (proxied).</p>
+      <strong>Request (JSON)</strong>
+      <pre>{ "state":"XY", "filters": {} }</pre>
+      <strong>Response</strong>
+      <pre>{ "statusCode":"200","response":"SUCCESS","data":[ /* cities */ ] }</pre>
+    </div>
+  </section>
+
+  <!-- LOA Service -->
+  <section class="service" id="loa-service">
+    <h2>LOA Service (loa-service)</h2>
+    <p class="meta">Endpoints include <code>/transaction</code>, <code>/transaction/history</code>, <code>/download/loa</code>.</p>
+    <div class="endpoint">
+      <h3>POST /transaction</h3>
+      <strong>Request (LoaRequestDTO example)</strong>
+      <pre>{
+  "originMemberCode":"M123",
+  "hospitalCode":"H123",
+  "patient": {"name":"John Doe","dob":"1980-01-01"},
+  "serviceType":"INPATIENT"
+}</pre>
+    </div>
+  </section>
+
+  <!-- FaceScan Service -->
+  <section class="service" id="facescan-service">
+    <h2>FaceScan Service (facescan-service)</h2>
+    <p class="meta">Path: <code>/api/v1/faceScan</code> (eligibility, storeResult, history, fetchResult)</p>
+    <div class="endpoint">
+      <h3>POST /api/v1/faceScan/eligibility</h3>
+      <strong>Request</strong>
+      <pre>{
+  "userId":"user@example.com",
+  "deviceId":"device-abc",
+  "imageToken":"base64-or-ref"
+}</pre>
+    </div>
+  </section>
+
+  <!-- Membership Service -->
+  <section class="service" id="membership-service">
+    <h2>Membership Service (membership-service)</h2>
+    <p class="meta">Endpoints include <code>/api/v1/membership/memberProfile</code>, <code>/dependent</code>, <code>/maternity</code>, utility proxies.</p>
+    <div class="endpoint">
+      <h3>GET /api/v1/membership/memberProfile?memberCode={memberCode}</h3>
+      <strong>Response</strong>
+      <pre>{
+  "statusCode":"200",
+  "response":"SUCCESS",
+  "data": { "memberCode":"M123","name":"Jane Doe","plan":"Gold" }
+}</pre>
+    </div>
+  </section>
+
+  <hr/>
+  <p>Notes:</p>
+  <ul>
+    <li>Excluded services: any <code>shared-*</code> folders, <code>notification-service</code>, and <code>filemanagement-service</code> as requested.</li>
+    <li>For exact DTO-level JSON schemas I can expand each endpoint; this file provides representative examples and SVG flowcharts.</li>
+    <li>If you want this HTML exported as PDF or require full schema expansion now, tell me which service to expand first and I will read DTO classes and add accurate JSON Schema and examples into this HTML.</li>
+  </ul>
+</body>
+</html>

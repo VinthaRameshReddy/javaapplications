@@ -1,0 +1,8 @@
+apiVersion: v2
+name: shared-reimbursement-chart
+description: Helm chart for shared reimbursement service
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+

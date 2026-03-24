@@ -1,0 +1,443 @@
+1. `/biometric/challenge` API - Generate Biometric Challenge/09-12-2025-->create api based on this prompt
+
+Purpose:
+Generate a secure random challenge for biometric authentication. This challenge is used to prevent replay attacks and must be signed by the client using their stored passkey hash.
+
+---
+1.1 Controller Layer
+
+ROLE: You are a Java Spring Boot backend developer explaining controller layer implementation.
+
+TASK: Explain in detail what happens in the controller layer for the `/biometric/challenge` API endpoint.
+
+CONTEXT:
+- Controller class name: `AuthController`
+- Package: `com.medgo.auth.controller`
+- Class annotation: `@RestController` - makes this class a REST controller
+- Class-level mapping: `@RequestMapping("/api/v1/auth")` - base path for all endpoints
+- Service dependency: `RegistrationService registrationService` (injected via constructor or `@Autowired`)
+- Logger: `private final Logger logger = LoggerFactory.getLogger(AuthController.class);`
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP:
+
+1. HTTP Request Reception:
+   - Spring Framework receives HTTP POST request at URL: `/api/v1/auth/biometric/challenge`
+   - Request body contains encrypted JSON data
+   - Spring dispatches this request to the `generateBiometricChallenge` method in `AuthController` class
+
+2. Method Mapping:
+   - Method annotation `@PostMapping("/biometric/challenge")` tells Spring this method handles POST requests
+   - Combined with class-level `@RequestMapping("/api/v1/auth")`, full path becomes `/api/v1/auth/biometric/challenge`
+   - Spring matches the request URL to this method
+
+3. Request Decryption Interception:
+   - Before method execution, `@DecryptBody(BiometricChallengeRequest.class)` annotation is processed
+   - This annotation is from custom package: `com.medgo.crypto.annotation.DecryptBody`
+   - A Spring AOP aspect or interceptor intercepts the request
+   - The encrypted request body is decrypted using encryption key
+   - Decrypted JSON is parsed and converted to `BiometricChallengeRequest` object
+   - The `BiometricChallengeRequest` object is passed to the method parameter
+
+4. Request Validation:
+   - `@Valid` annotation triggers Jakarta Bean Validation framework
+   - Validation happens automatically before method body executes
+   - Validates `email` field in `BiometricChallengeRequest`:
+     - `@NotBlank` validation: checks if email is not null, not empty string, and not whitespace-only
+     - `@Size(max=100)` validation: checks if email length does not exceed 100 characters
+   - If validation fails:
+     - `MethodArgumentNotValidException` is thrown
+     - Exception is caught by `GlobalExceptionHandler` class
+     - Error response is returned with validation error messages
+     - Method body does not execute
+
+5. Request Logging:
+   - Method body starts execution
+   - First line: `logger.info("BiometricChallengeRequest: email={}", request.email());`
+   - Uses SLF4J logger instance (`logger` field)
+   - Logs the email from request for debugging/tracing purposes
+   - Log format: "BiometricChallengeRequest: email=user@example.com"
+
+6. Service Method Invocation:
+   - Calls: `CommonResponse response = registrationService.generateBiometricChallenge(request);`
+   - `registrationService` is the injected `RegistrationService` instance
+   - Calls `generateBiometricChallenge` method on the service
+   - Passes `BiometricChallengeRequest` object as parameter
+   - Service method executes business logic (user lookup, challenge generation, Redis storage)
+   - Service returns `CommonResponse` object
+   - Response is stored in local variable `response`
+
+7. Response Logging:
+   - Logs the response: `logger.info("BiometricChallengeResponse: {}", response);`
+   - Logs entire `CommonResponse` object (will show statusCode, response, data fields)
+   - Helps with debugging and request tracing
+
+8. Response Encryption Interception:
+   - Method returns: `return response;`
+   - Before response is sent to client, `@EncryptResponse` annotation is processed
+   - This annotation is from custom package: `com.medgo.crypto.annotation.EncryptResponse`
+   - A Spring AOP aspect or interceptor intercepts the return value
+   - The `CommonResponse` object is serialized to JSON
+   - JSON is encrypted using encryption key
+   - Encrypted response is sent as HTTP response body
+
+9. HTTP Response:
+   - Spring Framework sends HTTP 200 OK response
+   - Response body contains encrypted JSON
+   - Response headers include standard HTTP headers (Content-Type, etc.)
+
+**CLASSES AND ANNOTATIONS INVOLVED:**
+- `AuthController` - Controller class
+- `@RestController` - Spring annotation marking REST controller
+- `@RequestMapping` - Spring annotation for base URL mapping
+- `@PostMapping` - Spring annotation for POST endpoint mapping
+- `@DecryptBody` - Custom annotation for request decryption
+- `@EncryptResponse` - Custom annotation for response encryption
+- `@Valid` - Jakarta validation annotation
+- `BiometricChallengeRequest` - Request DTO class
+- `RegistrationService` - Service interface
+- `CommonResponse` - Response wrapper class
+- `Logger` - SLF4J logger interface
+- `LoggerFactory` - SLF4J factory for creating loggers
+
+METHOD SIGNATURE:
+```java
+@PostMapping("/biometric/challenge")
+@EncryptResponse
+public CommonResponse generateBiometricChallenge(
+        @Valid @DecryptBody(BiometricChallengeRequest.class) BiometricChallengeRequest request
+)
+```
+
+OUTPUT: Detailed explanation of controller layer execution flow, annotations, and method calls.
+
+---
+
+1.2 Service Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot service-layer developer explaining business logic implementation.
+
+TASK: Explain in detail what happens in the service layer for the `generateBiometricChallenge` method.
+
+CONTEXT:
+- Service class name: `AuthServiceImpl`
+- Package: `com.medgo.auth.serviceImpl`
+- Class annotation: `@Service` - marks this as a Spring service bean
+- Implements interface: `RegistrationService` (method has `@Override` annotation)
+- Logger: `private static final Logger LOGGER = LoggerFactory.getLogger(AuthServiceImpl.class);`
+- Dependencies injected via constructor:
+  - `UserRepository userRepository` - JPA repository for MEMBER users table (`MEDGO_USERS`)
+  - `NonMemberUserRepositry nonMemberUserRepositry` - JPA repository for NON_MEMBER users table (`NON_MEMBER_USERS`)
+  - `StringRedisTemplate redisTemplate` - Spring Redis template for cache operations
+- Class constants:
+  - `private static final String CHALLENGE_PREFIX = "biometric:challenge:";` - Redis key prefix
+  - `private static final int CHALLENGE_EXPIRY_SECONDS = 120;` - Challenge expiry time (2 minutes)
+  - `private static final SecureRandom RANDOM = new SecureRandom();` - Cryptographically secure random number generator
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP:
+
+1. Method Entry and Logging:
+   - Method signature: `public CommonResponse generateBiometricChallenge(BiometricChallengeRequest request)`
+   - Method receives `BiometricChallengeRequest` object containing `email` field
+   - First line logs: `LOGGER.info("Generating biometric challenge for email: {}", request.email());`
+   - Logs the email for tracing the request flow
+
+2. User Lookup - MEMBER Table:
+   - Calls: `Optional<UserModel> memberUserOpt = userRepository.findByEmailOrMobile(request.email(), request.email());`
+   - `userRepository` is Spring Data JPA repository interface
+   - Method `findByEmailOrMobile` is automatically implemented by Spring Data JPA
+   - Generates SQL query: `SELECT * FROM MEDGO_USERS WHERE email = :email OR mobile = :email`
+   - Both parameters are same (`request.email()`) to search by email OR mobile
+   - Returns `Optional<UserModel>` - empty if not found, contains `UserModel` entity if found
+   - `UserModel` is JPA entity class mapped to `MEDGO_USERS` table
+
+3. User Lookup - NON_MEMBER Table:
+   - Calls: `Optional<NonMemberUserModel> nonMemberUserOpt = nonMemberUserRepositry.findByEmailOrMobile(request.email(), request.email());`
+   - Similar to MEMBER lookup but searches `NON_MEMBER_USERS` table
+   - Returns `Optional<NonMemberUserModel>` - empty if not found, contains `NonMemberUserModel` entity if found
+   - `NonMemberUserModel` is JPA entity class mapped to `NON_MEMBER_USERS` table
+
+4. User Not Found Validation:
+   - Checks: `if (memberUserOpt.isEmpty() && nonMemberUserOpt.isEmpty())`
+   - If both `Optional` objects are empty, user doesn't exist in either table
+   - Logs warning: `LOGGER.warn("Challenge generation failed - User not found: {}", request.email());`
+   - Creates error response:
+     - `ErrorResponse` object with code from `CustomStatusCode.USER_NOT_FOUND.getCode()`
+     - Message from `CustomStatusCode.USER_NOT_FOUND.getMessage()`
+     - `CustomStatusCode` is enum class containing error codes
+   - Returns: `CommonResponse.error(errorResponse, HttpStatus.NOT_FOUND.value())`
+   - `CommonResponse.error()` is static factory method that creates error response
+   - HTTP status code is 404 (NOT_FOUND)
+   - Method execution stops here (early return)
+
+5. Biometric Enabled Check - MEMBER User:
+   - If MEMBER user found: `if (memberUserOpt.isPresent())`
+   - Gets user entity: `UserModel user = memberUserOpt.get();`
+   - Checks biometric enabled flag: `Boolean.TRUE.equals(user.getBiometricEnabled())`
+   - `getBiometricEnabled()` returns `Boolean` (nullable) from database column `BIOMETRIC_ENABLED`
+   - Uses `Boolean.TRUE.equals()` to safely handle null values
+   - Sets local variable: `biometricEnabled = true` if enabled, `false` otherwise
+
+6. Biometric Enabled Check - NON_MEMBER User:
+   - If NON_MEMBER user found: `else if (nonMemberUserOpt.isPresent())`
+   - Gets user entity: `NonMemberUserModel user = nonMemberUserOpt.get();`
+   - NON_MEMBER users might not have `biometricEnabled` field
+   - Checks if passkey exists: `user.getPasskey() != null && !user.getPasskey().isEmpty()`
+   - `getPasskey()` returns `String` from database column `PASSKEY`
+   - If passkey exists, biometric is considered enabled
+   - Sets local variable: `biometricEnabled = true` if passkey exists, `false` otherwise
+
+7. Biometric Not Enabled Validation:
+   - Checks: `if (!biometricEnabled)`
+   - If biometric is not enabled for the user:
+     - Logs warning: `LOGGER.warn("Challenge generation failed - Biometric not enabled for user: {}", request.email());`
+     - Creates error response:
+       - `ErrorResponse` with HTTP status code `HttpStatus.FORBIDDEN.value()` (403)
+       - Error message: "Biometric authentication is not enabled for this user"
+     - Returns: `CommonResponse.error(errorResponse, HttpStatus.FORBIDDEN.value())`
+     - HTTP status code is 403 (FORBIDDEN)
+     - Method execution stops here (early return)
+
+8. Challenge Generation:
+   - Creates byte array: `byte[] challengeBytes = new byte[32];`
+   - Array size is 32 bytes (256 bits) for cryptographic security
+   - Fills array with random bytes: `RANDOM.nextBytes(challengeBytes);`
+   - `RANDOM` is `SecureRandom` instance - cryptographically secure random number generator
+   - `nextBytes()` fills the array with random bytes
+   - Encodes to Base64: `String challenge = Base64.getEncoder().encodeToString(challengeBytes);`
+   - `Base64.getEncoder()` gets Base64 encoder instance
+   - `encodeToString()` converts byte array to Base64-encoded string
+   - Result is a random 32-byte challenge encoded as Base64 string (44 characters)
+
+9. Redis Storage:
+   - Creates Redis key: `String challengeKey = CHALLENGE_PREFIX + request.email();`
+   - Key format: `"biometric:challenge:" + "user@example.com"` = `"biometric:challenge:user@example.com"`
+   - Uses email as part of key to make it unique per user
+   - Stores challenge in Redis: `redisTemplate.opsForValue().set(challengeKey, challenge, Duration.ofSeconds(CHALLENGE_EXPIRY_SECONDS));`
+   - `redisTemplate` is Spring Redis template for String operations
+   - `opsForValue()` returns operations for String values
+   - `set()` stores key-value pair with TTL (Time To Live)
+   - TTL is `CHALLENGE_EXPIRY_SECONDS` (120 seconds = 2 minutes)
+   - After 120 seconds, Redis automatically deletes the key-value pair
+   - This prevents replay attacks (challenge expires after 2 minutes)
+
+10. Success Response:
+    - Logs success: `LOGGER.info("Biometric challenge generated for email: {}, expires in {} seconds", request.email(), CHALLENGE_EXPIRY_SECONDS);`
+    - Creates response data map: `Map.of("challenge", challenge, "expiresIn", CHALLENGE_EXPIRY_SECONDS)`
+    - `Map.of()` creates immutable map with two key-value pairs:
+      - Key "challenge": Base64-encoded challenge string
+      - Key "expiresIn": 120 (seconds)
+    - Returns: `CommonResponse.success(responseDataMap)`
+    - `CommonResponse.success()` is static factory method that creates success response
+    - Sets `statusCode = "000"` (success code)
+    - Sets `response = "SUCCESS"`
+    - Sets `data = responseDataMap` (contains challenge and expiresIn)
+    - HTTP status code is 200 (OK)
+
+**CLASSES AND DEPENDENCIES INVOLVED:**
+- `AuthServiceImpl` - Service implementation class
+- `@Service` - Spring annotation marking service bean
+- `RegistrationService` - Service interface
+- `UserRepository` - JPA repository interface for MEMBER users
+- `NonMemberUserRepositry` - JPA repository interface for NON_MEMBER users
+- `UserModel` - JPA entity class for MEMBER users
+- `NonMemberUserModel` - JPA entity class for NON_MEMBER users
+- `StringRedisTemplate` - Spring Redis template class
+- `SecureRandom` - Java security class for random number generation
+- `Base64` - Java utility class for Base64 encoding
+- `CommonResponse` - Response wrapper class
+- `ErrorResponse` - Error response class
+- `CustomStatusCode` - Enum class with error codes
+- `HttpStatus` - Spring HTTP status enum
+- `Duration` - Java time class for time duration
+- `Map` - Java collection interface
+- `Optional` - Java optional wrapper class
+- `Logger` - SLF4J logger interface
+
+METHOD SIGNATURE:
+```java
+@Override
+public CommonResponse generateBiometricChallenge(BiometricChallengeRequest request)
+```
+
+OUTPUT: Detailed explanation of service layer execution flow, database operations, Redis operations, and business logic.
+
+---
+
+1.3 DTO Layer - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining data transfer object (DTO) design and validation.
+
+TASK: Explain in detail what happens with the `BiometricChallengeRequest` DTO class.
+
+CONTEXT:
+- DTO class name: `BiometricChallengeRequest`
+- Package: `com.medgo.auth.domain.request`
+- Type: Java record (immutable data class)
+- Field: `email` (String type)
+- Validation annotations: `@NotBlank`, `@Size(max=100)`
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP:
+
+1. Record Class Definition:
+   - Java record syntax: `public record BiometricChallengeRequest(String email) {}`
+   - Record is a special class type introduced in Java 14
+   - Record automatically generates:
+     - Private final field: `private final String email;`
+     - Public constructor: `public BiometricChallengeRequest(String email)`
+     - Public getter method: `public String email()` (accessor method, not `getEmail()`)
+     - `equals()` method: compares records by field values
+     - `hashCode()` method: generates hash code based on field values
+     - `toString()` method: generates string representation
+   - Record is immutable - fields cannot be changed after construction
+
+2. Validation Annotation Processing:
+   - `@NotBlank` annotation is from `jakarta.validation.constraints.NotBlank`
+   - Annotation is processed by Jakarta Bean Validation framework
+   - When `@Valid` annotation is used in controller, validation framework is triggered
+   - `@NotBlank` validation checks:
+     - Field is not `null`
+     - Field is not empty string (`""`)
+     - Field is not whitespace-only string (`"   "`)
+   - If validation fails:
+     - `ConstraintViolationException` is thrown
+     - Error message "Email is required" is included in exception
+     - Exception is caught by `GlobalExceptionHandler`
+     - Error response is returned to client
+
+3. Size Validation Processing:
+   - `@Size(max=100)` annotation is from `jakarta.validation.constraints.Size`
+   - Validates string length does not exceed 100 characters
+   - Checks: `email.length() <= 100`
+   - If validation fails:
+     - Error message "Email must not exceed 100 characters" is returned
+     - HTTP 400 Bad Request status is returned
+
+4. Request Deserialization:
+   - When request arrives, Jackson JSON library deserializes JSON to Java object
+   - JSON: `{"email": "user@example.com"}`
+   - Jackson creates `BiometricChallengeRequest` instance: `new BiometricChallengeRequest("user@example.com")`
+   - Record constructor is called with email value
+   - Object is created and passed to controller method
+
+5. Field Access:
+   - In controller/service, email is accessed via: `request.email()`
+   - Record provides accessor method (not traditional getter)
+   - Method returns the email string value
+
+CLASSES AND ANNOTATIONS INVOLVED:
+- `BiometricChallengeRequest` - Record class
+- `@NotBlank` - Jakarta validation annotation
+- `@Size` - Jakarta validation annotation
+- `jakarta.validation.constraints` - Validation package
+- Jackson JSON library - For JSON deserialization
+- `GlobalExceptionHandler` - Exception handler for validation errors
+
+RECORD DEFINITION:
+```java
+public record BiometricChallengeRequest(
+    @NotBlank(message = "Email is required")
+    @Size(max = 100, message = "Email must not exceed 100 characters")
+    String email
+) {}
+```
+
+OUTPUT: Detailed explanation of DTO structure, validation processing, and record class behavior.
+
+---
+
+1.4 Repository Layer - Detailed Explanation Prompt
+
+ROLE: You are a backend engineer explaining Spring Data JPA repository implementation.
+
+TASK: Explain in detail how the `findByEmailOrMobile` method works in the repository layer.
+
+CONTEXT:
+- Repository interfaces:
+  - `UserRepository` extends `JpaRepository<UserModel, Long>` - for MEMBER users
+  - `NonMemberUserRepositry` extends `JpaRepository<NonMemberUserModel, Long>` - for NON_MEMBER users
+- Method name: `findByEmailOrMobile`
+- Spring Data JPA automatically implements repository methods based on method name
+
+WHAT HAPPENS IN THIS LAYER - STEP BY STEP:
+
+1. Repository Interface Definition:
+   - Interface declares method: `Optional<UserModel> findByEmailOrMobile(String emailId, String mobileNumber);`
+   - No implementation code needed - Spring Data JPA generates it
+   - Method signature tells Spring what query to generate
+
+2. Method Name Parsing:
+   - Spring Data JPA parses method name: `findByEmailOrMobile`
+   - Breaks down into parts:
+     - `find` - query type (SELECT query)
+     - `By` - separator
+     - `Email` - first field name (maps to `email` column)
+     - `Or` - logical operator (OR condition)
+     - `Mobile` - second field name (maps to `mobile` column)
+   - Spring understands entity field names from JPA entity class
+
+3. SQL Query Generation:
+   - Spring generates SQL query based on method name
+   - For `UserRepository`: 
+     ```sql
+     SELECT * FROM MEDGO_USERS 
+     WHERE email = :emailId OR mobile = :mobileNumber
+     ```
+   - For `NonMemberUserRepositry`:
+     ```sql
+     SELECT * FROM NON_MEMBER_USERS 
+     WHERE email = :emailId OR mobile = :mobileNumber
+     ```
+   - Parameters `:emailId` and `:mobileNumber` are bound from method parameters
+
+4. Entity Field Mapping:
+   - Spring looks at `UserModel` entity class
+   - Finds fields annotated with `@Column(name = "EMAIL")` and `@Column(name = "MOBILE")`
+   - Maps Java field names to database column names
+   - Uses these column names in generated SQL
+
+5. Query Execution:
+   - When method is called: `userRepository.findByEmailOrMobile(email, email)`
+   - Spring creates `JpaRepository` proxy implementation
+   - Proxy executes generated SQL query via JPA EntityManager
+   - Query is executed against PostgreSQL database
+   - Database returns matching rows
+
+6. Result Mapping:
+   - JPA maps database rows to `UserModel` entity objects
+   - Creates `UserModel` instance for each row
+   - Sets entity fields from database columns
+   - If no rows found, returns empty `Optional`
+   - If one or more rows found, returns `Optional` containing first entity
+
+7. Optional Return Type:
+   - Method returns `Optional<UserModel>`
+   - `Optional` is Java wrapper class for nullable values
+   - `Optional.empty()` - if no user found
+   - `Optional.of(user)` - if user found
+   - Prevents `NullPointerException` - forces null checking
+
+CLASSES AND TECHNOLOGIES INVOLVED:
+- `UserRepository` - Repository interface for MEMBER users
+- `NonMemberUserRepositry` - Repository interface for NON_MEMBER users
+- `JpaRepository` - Spring Data JPA base interface
+- `UserModel` - JPA entity class
+- `NonMemberUserModel` - JPA entity class
+- `@Entity` - JPA annotation marking entity class
+- `@Column` - JPA annotation mapping field to column
+- `EntityManager` - JPA interface for database operations
+- `Optional` - Java wrapper class
+- Spring Data JPA framework - For automatic query generation
+- PostgreSQL database - Database system
+
+METHOD SIGNATURES:
+```java
+// In UserRepository
+Optional<UserModel> findByEmailOrMobile(String emailId, String mobileNumber);
+
+// In NonMemberUserRepositry
+Optional<NonMemberUserModel> findByEmailOrMobile(String emailId, String mobileNumber);
+```
+
+OUTPUT: Detailed explanation of Spring Data JPA repository method generation, SQL query creation, and entity mapping.
+
+---

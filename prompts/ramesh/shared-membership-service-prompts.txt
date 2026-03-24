@@ -1,0 +1,39 @@
+================================================================================
+SHARED MEMBERSHIP SERVICE - API PROMPTS
+================================================================================
+Service: shared-membership-service
+Context path: /membership (staging) or /sharedmembership (dev/local/prod)
+Security: Basic Authentication + API Key (Azure Key Vault: app-security-*)
+Health: /health, /actuator/health (no auth)
+================================================================================
+
+--- API 1: Find Member by Code ---
+Endpoint: GET /membership/v1/member (or /sharedmembership/v1/member per profile)
+Query params: userCode (required), userDependentId (optional)
+Response: CommonResponse with @EncryptResponse
+Controller: MemberController.findMemberByCode(userCode, userDependentId)
+Service: MemberService.findMemberByCode(userCode, userDependentId)
+
+--- API 2: Find Dependents by Principal Code ---
+Endpoint: GET /membership/v1/member/dependent
+Query params: userCode (required)
+Response: CommonResponse with @EncryptResponse
+Controller: MemberController.findDependentsByPrincipalCode(userCode)
+Service: MemberService.findDependentsByPrincipalCode(userCode)
+
+--- API 3: Find Maternity Benefits by Code ---
+Endpoint: GET /membership/v1/member/maternity
+Query params: userCode (required)
+Response: CommonResponse with @EncryptResponse
+Controller: MemberController.findMaternityBenefitsByCode(userCode)
+Service: MemberService.findMaternityBenefitsByCode(userCode)
+
+--- Security Config (Shared Membership) ---
+- SecurityConfig: @EnableWebSecurity, @EnableMethodSecurity. HttpBasic + custom API key filter (After BasicAuthenticationFilter).
+- Secrets from AzureKeyVaultService: app-security-api-key-header, app-security-api-key, app-security-user, app-security-password-bcrypt.
+- Permit: /health, /actuator/health. All other requests require authenticated + valid API key header.
+- API key filter: same pattern as shared-provider-service; 401 JSON {"error":"invalid_or_missing_api_key"} if invalid/missing.
+- UserDetailsService: single user from key vault, role CLIENT. Session: STATELESS.
+- Data: Membership DB (MedigoDataSourceConfig, MembershipDataSourceConfig), MembershipRepository, etc.
+
+================================================================================

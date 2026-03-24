@@ -1,0 +1,444 @@
+{
+	"info": {
+		"name": "Consent Management API",
+		"description": "API collection for consent management endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "List Available Consents",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Postman-Token",
+						"value": "test-token",
+						"description": "Add this header to skip encryption for testing"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/auth/consents/list",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"auth",
+						"consents",
+						"list"
+					]
+				},
+				"description": "Returns all enabled consents from the CONSENT table"
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/consents/list",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"consents",
+								"list"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": "{\n  \"statusCode\": \"000\",\n  \"response\": \"SUCCESS\",\n  \"data\": {\n    \"consents\": [\n      {\n        \"id\": 1,\n        \"type\": \"PRIVACY_POLICY\",\n        \"versionNo\": \"1.0\",\n        \"header\": \"Privacy Policy\",\n        \"content\": \"We collect and use your personal information...\",\n        \"enabled\": 1,\n        \"required\": 1,\n        \"createdOn\": \"2025-01-15T10:30:00\"\n      },\n      {\n        \"id\": 2,\n        \"type\": \"TERMS_OF_SERVICE\",\n        \"versionNo\": \"2.0\",\n        \"header\": \"Terms of Service\",\n        \"content\": \"By using our service, you agree to...\",\n        \"enabled\": 1,\n        \"required\": 1,\n        \"createdOn\": \"2025-01-20T14:20:00\"\n      },\n      {\n        \"id\": 3,\n        \"type\": \"MARKETING\",\n        \"versionNo\": \"1.0\",\n        \"header\": \"Marketing Communications\",\n        \"content\": \"We would like to send you marketing emails...\",\n        \"enabled\": 1,\n        \"required\": 0,\n        \"createdOn\": \"2025-01-25T09:15:00\"\n      }\n    ],\n    \"totalCount\": 3\n  },\n  \"traceId\": \"abc123-def456-ghi789\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Store User Consent",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "Postman-Token",
+						"value": "test-token",
+						"description": "Add this header to skip encryption for testing"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"user@example.com\",\n  \"consentIds\": [1, 2, 3, 4, 5],\n  \"agreed\": 1\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/auth/consents/store",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"auth",
+						"consents",
+						"store"
+					]
+				},
+				"description": "Stores user consent acceptance. Only stores NEW consent IDs (skips already accepted ones).\n\n**Note:** Frontend can send all consent IDs (already accepted + new ones). System will automatically filter and only store new ones."
+			},
+			"response": [
+				{
+					"name": "Success - New Consents Stored",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"user@example.com\",\n  \"consentIds\": [1, 2, 3, 4, 5],\n  \"agreed\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/consents/store",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"consents",
+								"store"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": "{\n  \"statusCode\": \"000\",\n  \"response\": \"SUCCESS\",\n  \"data\": {\n    \"userId\": \"user@example.com\",\n    \"actualUserId\": 123,\n    \"totalConsentIdsProvided\": 5,\n    \"alreadyStoredCount\": 2,\n    \"newConsentIdsStored\": 3,\n    \"skippedCount\": 0,\n    \"storedConsentIds\": [3, 4, 5],\n    \"message\": \"Stored 3 new consent(s) successfully\"\n  },\n  \"traceId\": \"abc123-def456-ghi789\"\n}"
+				},
+				{
+					"name": "Success - All Already Stored",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"user@example.com\",\n  \"consentIds\": [1, 2, 3],\n  \"agreed\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/consents/store",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"consents",
+								"store"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": "{\n  \"statusCode\": \"000\",\n  \"response\": \"SUCCESS\",\n  \"data\": {\n    \"userId\": \"user@example.com\",\n    \"actualUserId\": 123,\n    \"consentIds\": [1, 2, 3],\n    \"newConsentIdsStored\": 0,\n    \"message\": \"All consents are already stored\"\n  },\n  \"traceId\": \"abc123-def456-ghi789\"\n}"
+				},
+				{
+					"name": "Error - User Not Found",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"nonexistent@example.com\",\n  \"consentIds\": [1, 2],\n  \"agreed\": 1\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/consents/store",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"consents",
+								"store"
+							]
+						}
+					},
+					"status": "Not Found",
+					"code": 404,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						}
+					],
+					"body": "{\n  \"statusCode\": \"001\",\n  \"response\": \"ERROR\",\n  \"data\": {\n    \"statusCode\": 404,\n    \"message\": \"User not found\"\n  },\n  \"traceId\": \"abc123-def456-ghi789\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Member Login (with isConsented)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-DEVICE-ID",
+						"value": "device-12345",
+						"description": "Required header for device identification"
+					},
+					{
+						"key": "Postman-Token",
+						"value": "test-token"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"user@example.com\",\n  \"password\": \"password123\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/auth/login/member",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"auth",
+						"login",
+						"member"
+					]
+				},
+				"description": "Member login endpoint. Response includes isConsented field."
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"user@example.com\",\n  \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/login/member",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login",
+								"member"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						},
+						{
+							"key": "X-Access-Token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+						}
+					],
+					"body": "{\n  \"statusCode\": \"000\",\n  \"response\": \"SUCCESS\",\n  \"data\": {\n    \"message\": \"Login Successful\",\n    \"memberCode\": \"MEM-123456\",\n    \"isWhitelisted\": \"N\",\n    \"firstName\": \"John\",\n    \"sex\": 1,\n    \"birthDate\": \"1990-01-15\",\n    \"email\": \"user@example.com\",\n    \"mobile\": \"1234567890\",\n    \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"isConsented\": false\n  },\n  \"traceId\": \"abc123-def456-ghi789\"\n}"
+				}
+			]
+		},
+		{
+			"name": "Non-Member Login (with isConsented)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					},
+					{
+						"key": "X-DEVICE-ID",
+						"value": "device-12345",
+						"description": "Required header for device identification"
+					},
+					{
+						"key": "Postman-Token",
+						"value": "test-token"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n  \"userId\": \"nonmember@example.com\",\n  \"password\": \"password123\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{baseUrl}}/api/v1/auth/login/nonmember",
+					"host": [
+						"{{baseUrl}}"
+					],
+					"path": [
+						"api",
+						"v1",
+						"auth",
+						"login",
+						"nonmember"
+					]
+				},
+				"description": "Non-member login endpoint. Response includes isConsented field."
+			},
+			"response": [
+				{
+					"name": "Success Response",
+					"originalRequest": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"nonmember@example.com\",\n  \"password\": \"password123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/login/nonmember",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login",
+								"nonmember"
+							]
+						}
+					},
+					"status": "OK",
+					"code": 200,
+					"_postman_previewlanguage": "json",
+					"header": [
+						{
+							"key": "Content-Type",
+							"value": "application/json"
+						},
+						{
+							"key": "X-Access-Token",
+							"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+						}
+					],
+					"body": "{\n  \"statusCode\": \"000\",\n  \"response\": \"SUCCESS\",\n  \"data\": {\n    \"message\": \"Login Successful\",\n    \"memberCode\": \"\",\n    \"nonMemberCode\": \"NM-0200001\",\n    \"isWhitelisted\": \"N\",\n    \"email\": \"nonmember@example.com\",\n    \"mobile\": \"9876543210\",\n    \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n    \"isConsented\": true\n  },\n  \"traceId\": \"abc123-def456-ghi789\"\n}"
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		}
+	]
+}
+
+
+
+
+
+
+
+
+
+

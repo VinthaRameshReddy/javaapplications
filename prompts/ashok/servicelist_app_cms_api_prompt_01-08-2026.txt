@@ -1,0 +1,120 @@
+-/service/list api create based on this prompt
+
+AI Prompt Template – Service Management: Service List (POST-only)
+
+TASK:
+Generate layered prompts for the `POST /api/v1/service/list` API that returns a paginated list of services with filtering.
+
+CONTEXT:
+- Controller: `ServiceController`
+- Endpoint: `POST /api/v1/service/list`
+- Request DTO: `ServiceListRequest` with fields: `searchQuery`, `status`, `fromDate`, `toDate`, `page`, `size`, `sort`
+- Response wrapper: `CommonResponse` with `data` containing `{ total, items }`
+- Flow: Controller → Service → Repository
+- Local testing: Tests should run with H2 or MockMvc locally
+
+STANDARD REQUIREMENTS:
+- Use POST-only endpoint design.
+- Use `@DecryptBody(ServiceListRequest.class)` if encryption is in use.
+- Apply validation: `@Valid`, `@NotNull`/`@Min` on pagination, date-range check.
+- Log `traceId` on entry/exit using `RequestContext.getTraceId()`.
+- Mask or avoid logging PII such as service owner contact.
+- Controller must delegate to `serviceService.listServices(request)` without business logic.
+- Service must perform filtering, sanitization, paging, and return `CommonResponse.success(map)` where map = `{ "total": long, "items": List<Map<String,Object>> }`.
+- Repository: use Spring Data JPA with Specification or QueryDSL for flexible filters.
+- Tests: include `@WebMvcTest` for controller and unit tests for service using Mockito; use H2 or mocks for local tests.
+- Documentation: Provide OpenAPI snippet and example request/response.
+
+OUTPUT FORMAT:
+- Produce layered prompts (Controller, Service, Repository, DTO, Utilities, Tests, Docs) each with ROLE, TASK, CONTEXT, REQUIREMENTS, and OUTPUT FORMAT.
+
+1) Controller Layer
+ROLE: Senior Spring Boot backend developer.
+TASK: Generate `ServiceController.listServices` POST method.
+CONTEXT: `@RestController`, `@RequestMapping("/service")`, `@PostMapping("/list")`.
+REQUIREMENTS:
+ - `@DecryptBody(ServiceListRequest.class)` + `@Valid`
+ - Log: `log.info("traceId={} | method=listServices | q={}", traceId, mask(request.getSearchQuery()));`
+ - Delegate: `CommonResponse response = serviceService.listServices(request);`
+ - Return: `@EncryptResponse` `CommonResponse`
+OUTPUT: Java method signature and short snippet.
+
+2) Service Layer
+ROLE: Service developer.
+TASK: Implement `ServiceService.listServices(ServiceListRequest)`.
+REQUIREMENTS:
+ - @Service class, stateless.
+ - Validate date range and apply default pagination.
+ - Build JPA Specification or Criteria query using filters.
+ - Map entities to sanitized maps (mask PII).
+ - Return `CommonResponse.success(Map.of("total", total, "items", items))`.
+ - Handle exceptions and map to `CommonResponse.error(...)`.
+OUTPUT: Service skeleton with method signature and logging.
+
+3) Repository Layer
+ROLE: Persistence engineer.
+TASK: Provide `ServiceRepository` extending `JpaRepository<ServiceEntity, Long>` and Specification-based search.
+REQUIREMENTS:
+ - Example Specification: filter by `status`, `name LIKE`, date range on `createdAt`.
+ - Prefer Pageable query: `Page<ServiceEntity> findAll(Specification<ServiceEntity> spec, Pageable pageable)`.
+OUTPUT: Repository interface snippet and example Specification builder.
+
+4) DTO Layer
+ROLE: DTO author.
+TASK: Define `ServiceListRequest` and `ServiceItemResponse`.
+REQUIREMENTS:
+ - `ServiceListRequest` as record:
+   `public record ServiceListRequest(String searchQuery, String status, LocalDate fromDate, LocalDate toDate, Integer page, Integer size, String sort) {}`
+ - Validation: `@Min(0)` for page, `@Min(1) @Max(500)` for size
+ - `ServiceItemResponse` map fields: `id`, `name`, `status`, `createdAt`, `ownerMasked`
+OUTPUT: DTO code examples.
+
+5) Utility & Config Layer
+ROLE: Utility author.
+TASK: Provide `MaskingUtil.maskEmail`, `DateRangeValidator`, `SpecBuilderUtil`.
+REQUIREMENTS:
+ - `MaskingUtil.maskEmail(String email)` returns `a***@example.com`.
+ - `SpecBuilderUtil` helps build JPA Specifications from filters.
+OUTPUT: Utility signatures and short descriptions.
+
+6) Test Layer
+ROLE: QA automation.
+TASK: Provide `@WebMvcTest(ServiceController.class)` tests and unit tests for `ServiceService`.
+REQUIREMENTS:
+ - Controller test: mock `ServiceService`, verify 200 and JSON structure `{ data: { total, items: [...] } }`.
+ - Service unit tests: mock repository; test filter logic and pagination.
+ - Use H2 for lightweight integration test if desired.
+OUTPUT: Test skeletons and sample MockMvc request bodies.
+
+7) Documentation Layer
+ROLE: Tech writer.
+TASK: Provide OpenAPI snippet and example request/response for `/service/list`.
+OUTPUT: Markdown with example request JSON and response JSON (sanitized).
+
+EXAMPLE REQUEST:
+```json
+{
+  "searchQuery": "billing",
+  "status": "ACTIVE",
+  "fromDate": "2026-01-01",
+  "toDate": "2026-02-01",
+  "page": 0,
+  "size": 25,
+  "sort": "createdAt,desc"
+}
+```
+
+EXAMPLE RESPONSE (sanitized):
+```json
+{
+  "status": "SUCCESS",
+  "data": {
+    "total": 123,
+    "items": [
+      { "id": 1, "name": "Billing Service", "status": "ACTIVE", "createdAt": "2025-12-01T10:00:00Z", "ownerMasked": "j***@example.com" }
+    ]
+  }
+}
+```
+
+

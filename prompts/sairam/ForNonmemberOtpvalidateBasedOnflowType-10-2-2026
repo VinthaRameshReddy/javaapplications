@@ -1,0 +1,11 @@
+1) for non member login register resetpassword use same flow type implemented in member login register and reseet password with out effect are remove the existing functionality
+
+
+2)done all changes in flow type for non member
+
+
+3)for login otp verification for nonmember use FLow type = LOGIN accept don,t acccept if floe type is member_registration,password_reset don,t remove existingFlow for member login don,t effect any thing to existing functionallity
+
+4)for non member password resset flow and passwoer verifty the otp use flowtype=PASSWORD_RESET and non member requested otp can verify using flow type =PASSWORD_RESET  reject if login ,member registration donot change the existing functionality don,t effect to existing functionality for meber nom member do this cchanges only
+
+5)for non member login otp verification use flow type = LOGIN  accept flow type login reject member registration flow type and passssword  reset and use same as member login we checked otp reference id and otp and floe type don,t remove existing one

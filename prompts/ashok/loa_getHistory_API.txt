@@ -1,0 +1,232 @@
+7. /transaction/history API - Get LOA History/09-12-2025-->create api based on this prompt
+
+Purpose
+Retrieve paginated LOA (Letter of Authorization) transaction history for a member. Returns a list of LOA transactions with pagination support and optional hospital code filtering. This endpoint acts as a proxy to the Medicard API, automatically handling authentication token management.
+
+---
+
+7.1 Controller Layer - Detailed Explanation Prompt
+
+ROLE: You are a Java Spring Boot backend developer explaining controller layer implementation.
+
+TASK: Explain in detail what happens in the controller layer for the `/transaction/history` API endpoint.
+
+CONTEXT:
+- Controller class: `LoaController`
+- Endpoint: `GET /transaction/history` (full path: `/loa-service/transaction/history`)
+- Request Parameters: `page`, `size`, `originMemberCode`, `hospitalCode` (optional)
+- Acts as proxy to Medicard API via Feign client
+- Automatic authentication via FeignClientConfig
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Request Reception:
+   - Spring receives HTTP GET request at `/transaction/history`
+   - Request parameters passed as query string
+   - Context path: `/loa-service` (from `server.servlet.context-path`)
+
+2. Parameter Extraction:
+   - `page` parameter:
+     - Default value: `0` (if not provided)
+     - Validation: `@Min(value = 0, message = "page must be >= 0")`
+     - Type: `int`
+   - `size` parameter:
+     - Default value: `5` (if not provided)
+     - Validation: `@Min(value = 5, message = "size must be >= 5")`
+     - Type: `int`
+   - `originMemberCode` parameter:
+     - Required: Yes (no `required = false`)
+     - Validation: `@Size(max = 50, message = "originMemberCode must not exceed 50 characters")`
+     - Type: `String`
+   - `hospitalCode` parameter:
+     - Required: No (`required = false`)
+     - Validation: `@Size(max = 50, message = "hospitalCode must not exceed 50 characters")`
+     - Type: `String`
+
+3. Validation:
+   - Spring validates parameters automatically:
+     - If `page < 0`: Returns HTTP 400 Bad Request with message "page must be >= 0"
+     - If `size < 5`: Returns HTTP 400 Bad Request with message "size must be >= 5"
+     - If `originMemberCode` length > 50: Returns HTTP 400 Bad Request with message "originMemberCode must not exceed 50 characters"
+     - If `hospitalCode` length > 50: Returns HTTP 400 Bad Request with message "hospitalCode must not exceed 50 characters"
+
+4. Feign Client Call:
+   - Calls: `Object response = medicardApiClient.getLoaHistory(page, size, originMemberCode, hospitalCode);`
+   - `MedicardApiClient` is a Feign client interface
+   - Automatically adds authentication token via `FeignClientConfig`
+   - Forwards request to: `GET /mcap/mace-medgo/service/transaction/v2` at Medicard API
+   - Query parameters passed to Medicard API
+
+5. Response Handling:
+   - If successful: `return CommonResponse.success(response);`
+   - Wraps Medicard API response in `CommonResponse` wrapper
+   - Response contains paginated list of LOA transactions
+
+6. No Explicit Logging:
+   - No explicit logging in controller (handled by Feign client)
+   - Errors handled by Feign error decoder
+
+OUTPUT: Detailed explanation of controller layer execution, parameter validation, and Feign client integration.
+
+---
+
+7.2 Feign Client Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot developer explaining Feign client integration and automatic authentication.
+
+TASK: Explain in detail what happens in the Feign client layer when calling the Medicard API for LOA history.
+
+CONTEXT:
+- Feign Client: `MedicardApiClient`
+- Endpoint: `GET /mcap/mace-medgo/service/transaction/v2`
+- Base URL: Configured via `medicard.api.url` property
+- Configuration: `FeignClientConfig` (automatic token injection)
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Feign Client Interface:
+   - `@FeignClient(name = "medicard-api", url = "${medicard.api.url}", configuration = FeignClientConfig.class)`
+   - Method: `Object getLoaHistory(int page, int size, String originMemberCode, String hospitalCode);`
+   - Mapping: `@GetMapping("/mcap/mace-medgo/service/transaction/v2")`
+   - Parameters: `@RequestParam` annotations for query parameters
+
+2. Request Interceptor Execution:
+   - `FeignClientConfig.combinedHeadersInterceptor()` intercepts request
+   - Executes before HTTP request is sent
+
+3. APIM Key Header Addition:
+   - Checks: `if (loaApimKey != null && !loaApimKey.isEmpty())`
+   - Adds header: `requestTemplate.header("Ocp-Apim-Subscription-Key", loaApimKey);`
+   - APIM key from: `@Value("${loa.apim-key}")` property
+
+4. Authentication Token Retrieval:
+   - Calls: `String accessToken = tokenService.getAccessToken();`
+   - `TokenService.getAccessToken()`:
+     a. Checks cached token validity (with 5-minute buffer)
+     b. If valid: Returns cached token
+     c. If expired/invalid: Fetches new token from Medicard Auth API
+     d. Caches new token with expiry time
+     e. Returns access token
+
+5. Authorization Header Addition:
+   - Extracts token value (removes "Bearer " prefix if present)
+   - Adds header: `requestTemplate.header("Authorization", "Bearer " + tokenValue);`
+   - Token format: `Bearer <access_token>`
+
+6. HTTP Request Execution:
+   - Feign client sends HTTP GET request to Medicard API
+   - URL: `{medicard.api.url}/mcap/mace-medgo/service/transaction/v2`
+   - Query Parameters:
+     - `page`: Page number (default: 0)
+     - `size`: Page size (default: 5)
+     - `originMemberCode`: Member code (required)
+     - `hospitalCode`: Hospital code (optional, if provided)
+   - Headers:
+     - `Authorization: Bearer <token>`
+     - `Ocp-Apim-Subscription-Key: <apim-key>`
+
+7. Response Handling:
+   - Receives response from Medicard API
+   - Response typically contains:
+     - Paginated list of LOA transactions
+     - Total count
+     - Page information
+   - Deserializes JSON response to `Object`
+   - Returns response to controller
+
+8. Error Handling:
+   - `FeignClientConfig.errorDecoder()` handles errors
+   - 401 Unauthorized: Clears cached token, logs error
+   - 403 Forbidden: Clears cached token, logs error
+   - 404 Not Found: Returns 404 with error details
+   - Other errors: Uses default error decoder
+
+CLASSES AND METHODS INVOLVED:
+- `MedicardApiClient` - Feign client interface
+- `FeignClientConfig` - Feign configuration with interceptors
+- `TokenService` - Token management service
+- `RequestInterceptor` - Feign request interceptor
+- `ErrorDecoder` - Feign error decoder
+
+OUTPUT: Detailed explanation of Feign client execution, automatic token injection, query parameter handling, and error handling.
+
+---
+
+7.3 Request Parameters - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining request parameter validation and handling.
+
+TASK: Explain in detail what happens with the request parameters for the LOA history endpoint.
+
+CONTEXT:
+- Endpoint: `GET /transaction/history`
+- Parameters: Query parameters (not request body)
+- Validation: Bean Validation annotations on method parameters
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Parameter Extraction:
+   - Spring extracts parameters from query string
+   - Example URL: `/transaction/history?page=0&size=10&originMemberCode=2621761&hospitalCode=000018`
+
+2. Parameter - page:
+   - Annotation: `@RequestParam(value = "page", defaultValue = "0")`
+   - Validation: `@Min(value = 0, message = "page must be >= 0")`
+   - Type: `int`
+   - Default: `0` (if not provided)
+   - Purpose: Page number for pagination (0-indexed)
+   - Validation: Must be >= 0
+
+3. Parameter - size:
+   - Annotation: `@RequestParam(value = "size", defaultValue = "5")`
+   - Validation: `@Min(value = 5, message = "size must be >= 5")`
+   - Type: `int`
+   - Default: `5` (if not provided)
+   - Purpose: Number of records per page
+   - Validation: Must be >= 5 (minimum page size)
+
+4. Parameter - originMemberCode:
+   - Annotation: `@RequestParam("originMemberCode")`
+   - Validation: `@Size(max = 50, message = "originMemberCode must not exceed 50 characters")`
+   - Type: `String`
+   - Required: Yes (no `required = false`)
+   - Purpose: Member code to filter LOA transactions
+   - Validation: Maximum length 50 characters
+
+5. Parameter - hospitalCode:
+   - Annotation: `@RequestParam(value = "hospitalCode", required = false)`
+   - Validation: `@Size(max = 50, message = "hospitalCode must not exceed 50 characters")`
+   - Type: `String`
+   - Required: No (optional parameter)
+   - Purpose: Hospital code to filter LOA transactions (optional filter)
+   - Validation: Maximum length 50 characters (if provided)
+
+6. Validation Execution:
+   - Spring validates parameters before method execution
+   - If validation fails:
+     - Returns HTTP 400 Bad Request
+     - Response body contains validation error message
+     - Method is not executed
+
+7. Parameter Passing to Feign Client:
+   - Validated parameters passed to: `medicardApiClient.getLoaHistory(page, size, originMemberCode, hospitalCode)`
+   - Feign client converts to query parameters
+   - URL: `GET /mcap/mace-medgo/service/transaction/v2?page=0&size=10&originMemberCode=2621761&hospitalCode=000018`
+
+8. Default Value Handling:
+   - If `page` not provided: Uses `0`
+   - If `size` not provided: Uses `5`
+   - If `hospitalCode` not provided: Passes `null` to Feign client (optional parameter)
+
+CLASSES AND METHODS INVOLVED:
+- `@RequestParam` - Spring annotation for query parameters
+- `@Min` - Bean Validation annotation
+- `@Size` - Bean Validation annotation
+- Spring parameter validation framework
+
+OUTPUT: Detailed explanation of request parameter extraction, validation rules, default values, and parameter passing.
+
+---
+
+**OUTPUT:** Complete explanation of LOA history API including controller, Feign client, and request parameter handling layers.
+

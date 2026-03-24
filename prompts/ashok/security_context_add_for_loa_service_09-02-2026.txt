@@ -1,0 +1,94 @@
+### Goal
+Create the same JWT/member-code security context and validation in `loa-service` as implemented in other services (membership/claims) so LOA endpoints validate `originMemberCode` against the JWT `memberCode` claim and return consistent 403 behavior.
+
+### Use this exact prompt (copy/paste)
+Use this prompt when asking a developer/assistant to implement the feature so the resulting edits match the current services:
+
+```
+Add the MedGo JWT security context and member-code validation to `loa-service` exactly like other services (membership/claims). Implement the following:
+
+1) Component: `MedGoCustomSecurityContext`
+- Path: `services/loa-service/src/main/java/com/medgo/loaservice/components/MedGoCustomSecurityContext.java`
+- Responsibilities:
+  - Extract JWT token from HttpServletRequest (support `Authorization`, `authorization`, `AUTHORIZATION` headers; handle GET and POST).
+  - Provide methods:
+    - `String getTokenFromRequest()` and `String getTokenFromRequest(HttpServletRequest request)`
+    - `String authenticatedToken()` -> returns `Bearer <token>` or null
+    - `String authenticatedUsername()` and `String authenticatedUsername(HttpServletRequest request)` -> prefer `username` claim, fallback to subject
+    - `String authenticatedMemberCode()` and `String authenticatedMemberCode(HttpServletRequest request)` -> read `memberCode` claim
+    - `String authenticatedDeviceId()` -> subject
+  - Use existing `JwtTokenUtil` to parse claims.
+  - Add `@Component`, `@RequiredArgsConstructor`, `@Slf4j`, and a `@PostConstruct` log line ("MedGo MedGoCustomSecurityContext initialized for loa-service").
+  - Mirror error handling and logging style used in `membership-service` (don't throw on missing token; log and return null).
+
+2) Service: `MemberCodeValidationService`
+- Path: `services/loa-service/src/main/java/com/medgo/loaservice/service/MemberCodeValidationService.java`
+- Responsibilities:
+  - Inject `MedGoCustomSecurityContext`.
+  - Provide:
+    - `HashMap<String,Object> validateMemCode(String memCode)` which obtains current `HttpServletRequest` (via `RequestContextHolder`) and delegates to `validateMemCode(memCode, request)`.
+    - `HashMap<String,Object> validateMemCode(String memCode, HttpServletRequest request)` which:
+      - Gets `authenticatedUsername(request)`; if null/empty -> return map with `validate=false` and empty codes.
+      - Gets `authenticatedMemberCode(request)`; if null/empty -> return `validate=false`.
+      - If token `memberCode` != requested `memCode` (case-insensitive) -> return `validate=false`.
+      - If matches -> return `validate=true`, `memberCode` set, other fields as empty strings (same shape as membership/claims).
+      - Log same informational and security messages as membership/claims.
+    - `void validateMemCodeOrThrow(String memCode)` and `void validateMemCodeOrThrow(String memCode, HttpServletRequest request)` that call validate and throw `MemberCodeValidationException` when validation fails.
+  - Use the same behavior: membership service call is optional (NOT required for validation) — token match is the authoritative check.
+
+3) Exception: `MemberCodeValidationException`
+- Path: `services/loa-service/src/main/java/com/medgo/loaservice/exception/MemberCodeValidationException.java`
+- Simple runtime exception carrying the `memberCode` and message, matching other services.
+
+4) Controller updates
+- File: `services/loa-service/src/main/java/com/medgo/loaservice/controller/LoaController.java`
+- Inject `MemberCodeValidationService`.
+- For endpoints that accept `originMemberCode`:
+  - `requestLoa` (body): if `request.getOriginMemberCode()` present & not blank -> call `memberCodeValidationService.validateMemCodeOrThrow(request.getOriginMemberCode())` before calling feign client.
+  - `getLoaHistory` (query param): call `memberCodeValidationService.validateMemCodeOrThrow(originMemberCode)` before feign call.
+  - `getLoaHistoryDetails` (query param): call `validateMemCodeOrThrow(originMemberCode)`.
+  - `downloadLoa` (query param): call `validateMemCodeOrThrow(originMemberCode)`.
+- Keep the same validation message and HTTP behavior as other services.
+
+5) Global exception handler
+- File: `services/loa-service/src/main/java/com/medgo/loaservice/exception/GlobalExceptionHandler.java`
+- Add an `@ExceptionHandler(MemberCodeValidationException.class)` method that:
+  - Logs: `SECURITY ALERT: MemberCode validation failed for memberCode: {}`.
+  - Returns `CommonResponse.error(ErrorResponse, HttpStatus.FORBIDDEN.value())`.
+  - **The error message must be returned as**:
+    - `ex.getMessage() != null ? ex.getMessage() : "MemberCode does not belong to authenticated user. Access denied."`
+  - This ensures if the exception supplies a message it is returned; otherwise the fixed default string is returned (exact text required).
+
+6) Logging, defensive behavior and lints
+- Mirror log levels and messages used by `membership-service` and `claims-service`.
+- Do not fail validation if token parsing throws — treat as missing/invalid and return `validate=false`.
+- Add `@RequiredArgsConstructor` and `@Slf4j` where needed.
+- Run linter (`read_lints`) after edits and fix any obvious issues.
+
+7) Acceptance criteria / tests
+- When a request is made and JWT contains the same `memberCode` claim as `originMemberCode`, endpoint proceeds and forwards to feign client.
+- When JWT missing/username missing/memberCode missing/mismatch, endpoints return 403 with `ErrorResponse` message:
+  - If exception has message -> return that text.
+  - Otherwise -> return exactly: `MemberCode does not belong to authenticated user. Access denied.`
+- GET requests should extract token reliably via `RequestContextHolder`.
+- No linter errors in edited files.
+
+8) Suggested commit message
+- `feat(loa-service): add MedGoCustomSecurityContext and member-code validation + 403 handler`
+
+Follow the same file/class/method names and message text exactly to preserve consistency across services.
+```
+
+---
+
+### Quick checklist for implementer
+- **Add** `MedGoCustomSecurityContext` (component)
+- **Add** `MemberCodeValidationService` (service)
+- **Add** `MemberCodeValidationException` (exception)
+- **Update** `LoaController` to call `validateMemCodeOrThrow` where `originMemberCode` is provided
+- **Update** `GlobalExceptionHandler` to handle `MemberCodeValidationException` and return the same message logic
+- Run lints and unit test the 4 endpoints listed
+
+If you want, I can now generate the exact patch edits (files added/updated) or produce unit tests for `MemberCodeValidationService`. Which do you want next?
+
+

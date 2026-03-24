@@ -1,0 +1,151 @@
+Implement the resubmitReimbursement method in a Spring Boot service.
+
+Method details:
+
+Override an interface method
+
+Annotate with @Transactional
+
+Return type: ReimbursementResubmitResponse
+
+Parameters:
+
+ReimbursementResubmitRequest request
+
+List<DocumentUploadRequest> newDocumentUploads
+
+1. Fetch and validate existing request
+
+Fetch existing ReimbursementRequestEntity using controlCode
+
+If not found, throw IllegalArgumentException
+
+Allow resubmission only when status is:
+
+Action Needed
+
+Returned for Correction
+
+Otherwise throw an error with current status
+
+2. Pre-validation
+
+If new documents are provided:
+
+Validate required documents using documentService.validateRequiredDocuments
+
+If bank name and account number are present:
+
+Validate using bankAccountValidationService
+
+3. Refresh member and claim data
+
+Fetch member data from member service
+
+Fetch particulars code from Reim DB
+
+Calculate member age
+
+4. Update existing reimbursement request
+
+Update all editable fields on existingRequest from the request object
+
+Reset status to In-Process
+
+Set updatedAt to current time
+
+Clear submissionEmailSentAt to allow a new confirmation email
+
+5. Dual-database transaction handling
+
+Start a new transaction for Reim DB using PROPAGATION_REQUIRES_NEW
+
+For Reim DB:
+
+Call updateIpReceiving for Inpatient
+
+Call updateOpReceiving for Outpatient
+
+Save updated reimbursement request in Medigo DB
+
+Track whether Reim DB update succeeded
+
+6. Document removal
+
+If document IDs to remove are provided:
+
+Fetch documents by ID
+
+Validate each document belongs to the same reimbursement request
+
+Delete the validated documents
+
+7. New document uploads
+
+Loop through newDocumentUploads
+
+Skip null or empty files
+
+Upload files using fileManagementServiceClient.uploadFile
+
+Build ReimbursementDocumentEntity from upload response
+
+Save all new document entities in batch
+
+Use folder name built from control code, patient name, and account name
+
+8. Commit or rollback
+
+Commit Reim DB transaction if all operations succeed
+
+Roll back transaction on any failure
+
+Throw DualDatabaseTransactionException with:
+
+Control code
+
+Failed database (Reim DB or Medigo DB)
+
+9. Post-update verification
+
+Re-fetch the reimbursement request by control code
+
+Ensure record exists after update
+
+Validate status is In-Process (log warning if not)
+
+10. Build response
+
+Fetch all documents for the reimbursement request
+
+Build ReimbursementResubmitResponse:
+
+Include updated request details
+
+Map documents to DocumentInfo
+
+Include a user-friendly confirmation message
+
+11. Request context handling
+
+Extract headers from HttpServletRequest:
+
+X-DEVICE-ID
+
+X-APPLICATION-ID
+
+Resolve user email from:
+
+userId header
+
+JWT token (Authorization header) by decoding payload
+
+12. Email notification
+
+Build a lightweight ReimbursementSubmissionResponse for notification
+
+Send resubmission email notification
+
+Prevent duplicate emails using an atomic DB update
+
+If deduplication fails, still send the email

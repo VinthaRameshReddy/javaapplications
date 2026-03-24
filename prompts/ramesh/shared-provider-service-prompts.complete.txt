@@ -1,0 +1,23 @@
+Service group: shared-provider-service
+Original file: shared-provider-service-prompts.txt
+
+Scope:
+Generate per-endpoint prompts that fully describe behavior, DTOs, repository interactions, caching, and tests for every controller in `shared-provider-service`.
+
+Instructions:
+1. For each controller under `services/shared-provider-service/src/main/java/**/controller`, create a standalone prompt that:
+   - Identifies the controller class and each endpoint path and HTTP method.
+   - Extracts DTO and entity fields; if not present, infer and include JSON schema examples.
+   - Lists expected behavior, validation rules, errors, and integration points.
+   - Requests a git-style patch covering the entire service (all source files, tests, resources, configs).
+2. Preserve package names, encryption/validation annotations, and existing integration contracts.
+
+Non-functional requirements:
+- Java 17, Spring Boot 3.x
+- Unit and integration tests with mocks or in-memory DB
+- API backwards compatibility unless breaking changes are explicitly flagged
+
+Output:
+- One prompt file per endpoint located under `prompts/ramesh/` named `ramesh-<service>-<controller>-<endpoint>.complete.md` containing the full instructions above.
+
+Regenerate now.

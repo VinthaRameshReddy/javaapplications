@@ -1,0 +1,6 @@
+apiVersion: v2
+name: shared-utilization-chart
+description: Helm chart for shared utilization service
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

@@ -1,0 +1,384 @@
+9. /download/loa API - Download LOA Form/09-12-2025-->create api based on this prompt
+
+Purpose
+Download a LOA (Letter of Authorization) form as a PDF document. Returns a JSON response containing the base64-encoded PDF file along with metadata (file name, creation date, creator). This endpoint acts as a proxy to the Medicard API, automatically handling authentication token management.
+
+---
+
+9.1 Controller Layer - Detailed Explanation Prompt
+
+ROLE: You are a Java Spring Boot backend developer explaining controller layer implementation.
+
+TASK: Explain in detail what happens in the controller layer for the `/download/loa` API endpoint.
+
+CONTEXT:
+- Controller class: `LoaController`
+- Endpoint: `GET /download/loa` (full path: `/loa-service/download/loa`)
+- Request Parameters: `systemOrigin`, `requestId`, `originMemberCode`
+- Response DTO: `LoaDownloadResponseDTO` (typed response, not Object)
+- Acts as proxy to Medicard API via Feign client
+- Automatic authentication via FeignClientConfig
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Request Reception:
+   - Spring receives HTTP GET request at `/download/loa`
+   - Request parameters passed as query string
+   - Context path: `/loa-service` (from `server.servlet.context-path`)
+
+2. Request Parameter Extraction:
+   - `systemOrigin` parameter:
+     - Annotation: `@RequestParam("systemOrigin")`
+     - Type: `String`
+     - Required: Yes (no `required = false`)
+     - Purpose: System origin identifier (MCAP or MACE)
+   - `requestId` parameter:
+     - Annotation: `@RequestParam("requestId")`
+     - Type: `Long`
+     - Required: Yes (no `required = false`)
+     - Purpose: LOA request ID to download
+   - `originMemberCode` parameter:
+     - Annotation: `@RequestParam("originMemberCode")`
+     - Validation: `@Size(max = 50, message = "originMemberCode must not exceed 50 characters")`
+     - Type: `String`
+     - Required: Yes (no `required = false`)
+     - Purpose: Member code for the request
+
+3. System Origin Validation:
+   - Calls: `SystemOriginEnum origin = SystemOriginEnum.fromCode(systemOrigin);`
+   - `SystemOriginEnum.fromCode()`:
+     - Validates `systemOrigin` value
+     - Accepts: "MCAP" or "MACE"
+     - Returns: `SystemOriginEnum` enum value or `null` if invalid
+   - If invalid (`origin == null`):
+     - Logs: `log.error("Invalid systemOrigin: {}. Must be MCAP or MACE", systemOrigin);`
+     - Creates error: `new ErrorResponse(400, "INVALID_SYSTEM_ORIGIN", "Invalid systemOrigin. Must be MCAP or MACE", Collections.emptyList())`
+     - Returns: `CommonResponse.error(error, 400)` with HTTP 400 Bad Request
+     - Method execution stops (does not call Feign client)
+
+4. Parameter Validation:
+   - Spring validates `originMemberCode`:
+     - If length > 50: Returns HTTP 400 Bad Request with message "originMemberCode must not exceed 50 characters"
+
+5. Feign Client Call (if validation passes):
+   - Calls: `LoaDownloadResponseDTO response = medicardApiClient.downloadLoa(systemOrigin, requestId, originMemberCode);`
+   - `MedicardApiClient` is a Feign client interface
+   - Automatically adds authentication token via `FeignClientConfig`
+   - Forwards request to: `GET /mcap/mace-medgo/form/loa/v2` at Medicard API
+   - Query parameters passed to Medicard API
+   - Response type: `LoaDownloadResponseDTO` (typed, not Object)
+
+6. Response Validation:
+   - Checks: `if (response == null)`
+   - If null:
+     - Logs: `log.error("Response is null for requestId: {}", requestId);`
+     - Creates error: `new ErrorResponse(500, "INTERNAL_ERROR", "Failed to retrieve LOA download response", Collections.emptyList())`
+     - Returns: `CommonResponse.error(error, 500)` with HTTP 500 Internal Server Error
+
+7. Response Logging:
+   - Logs: `log.info("Received response - statusCode: {}, statusName: {}, data present: {}", response.getStatusCode(), response.getStatusName(), response.getData() != null);`
+   - Logs response metadata for debugging
+
+8. Response Handling:
+   - If successful: `return CommonResponse.success(response);`
+   - Wraps `LoaDownloadResponseDTO` in `CommonResponse` wrapper
+   - Response contains:
+     - `statusCode`: Response status code
+     - `statusName`: Response status name
+     - `data`: Object containing:
+       - `fileBase64`: Base64-encoded PDF content
+       - `fileName`: PDF file name
+       - `createdOn`: Creation timestamp
+       - `createdBy`: Creator information
+
+9. Exception Handling:
+   - Catches: `Exception e` from Feign client
+   - Logs: `log.error("Error downloading LOA form: {}", e.getMessage(), e);`
+   - Creates error: `new ErrorResponse(500, "INTERNAL_ERROR", "Error downloading LOA form: " + e.getMessage(), Collections.emptyList())`
+   - Returns: `CommonResponse.error(error, 500)` with HTTP 500 Internal Server Error
+
+OUTPUT: Detailed explanation of controller layer execution, parameter validation, response validation, exception handling, and Feign client integration.
+
+---
+
+9.2 Feign Client Layer - Detailed Explanation Prompt
+
+ROLE: You are a Spring Boot developer explaining Feign client integration and automatic authentication.
+
+TASK: Explain in detail what happens in the Feign client layer when calling the Medicard API for LOA download.
+
+CONTEXT:
+- Feign Client: `MedicardApiClient`
+- Endpoint: `GET /mcap/mace-medgo/form/loa/v2`
+- Base URL: Configured via `medicard.api.url` property
+- Configuration: `FeignClientConfig` (automatic token injection)
+- Response Type: `LoaDownloadResponseDTO` (typed response)
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Feign Client Interface:
+   - `@FeignClient(name = "medicard-api", url = "${medicard.api.url}", configuration = FeignClientConfig.class)`
+   - Method: `LoaDownloadResponseDTO downloadLoa(String systemOrigin, Long requestId, String originMemberCode);`
+   - Mapping: `@GetMapping("/mcap/mace-medgo/form/loa/v2")`
+   - Query Parameters: `@RequestParam` for all three parameters
+   - Response Type: `LoaDownloadResponseDTO` (not Object - typed response)
+
+2. Request Interceptor Execution:
+   - `FeignClientConfig.combinedHeadersInterceptor()` intercepts request
+   - Executes before HTTP request is sent
+
+3. APIM Key Header Addition:
+   - Checks: `if (loaApimKey != null && !loaApimKey.isEmpty())`
+   - Adds header: `requestTemplate.header("Ocp-Apim-Subscription-Key", loaApimKey);`
+   - APIM key from: `@Value("${loa.apim-key}")` property
+
+4. Authentication Token Retrieval:
+   - Calls: `String accessToken = tokenService.getAccessToken();`
+   - `TokenService.getAccessToken()`:
+     a. Checks cached token validity (with 5-minute buffer)
+     b. If valid: Returns cached token
+     c. If expired/invalid: Fetches new token from Medicard Auth API
+     d. Caches new token with expiry time
+     e. Returns access token
+
+5. Authorization Header Addition:
+   - Extracts token value (removes "Bearer " prefix if present)
+   - Adds header: `requestTemplate.header("Authorization", "Bearer " + tokenValue);`
+   - Token format: `Bearer <access_token>`
+
+6. HTTP Request Execution:
+   - Feign client sends HTTP GET request to Medicard API
+   - URL: `{medicard.api.url}/mcap/mace-medgo/form/loa/v2`
+   - Query Parameters:
+     - `systemOrigin`: System origin (MCAP or MACE)
+     - `requestId`: LOA request ID
+     - `originMemberCode`: Member code
+   - Example URL: `/mcap/mace-medgo/form/loa/v2?systemOrigin=MCAP&requestId=21909&originMemberCode=2621761`
+   - Headers:
+     - `Authorization: Bearer <token>`
+     - `Ocp-Apim-Subscription-Key: <apim-key>`
+
+7. Response Handling:
+   - Receives response from Medicard API
+   - Response format (JSON):
+     ```json
+     {
+       "statusCode": "200",
+       "statusName": "SUCCESS",
+       "data": {
+         "fileBase64": "JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoK...",
+         "fileName": "LOA_21909.pdf",
+         "createdOn": "2025-01-15T10:30:00",
+         "createdBy": "System"
+       }
+     }
+     ```
+   - Deserializes JSON response to `LoaDownloadResponseDTO`
+   - Jackson deserialization:
+     - Maps `statusCode` to `String statusCode`
+     - Maps `statusName` to `String statusName`
+     - Maps `data` to nested `Data` object
+     - Maps `fileBase64` to `String fileBase64` (Base64-encoded PDF)
+     - Maps `fileName` to `String fileName`
+     - Maps `createdOn` to `String createdOn`
+     - Maps `createdBy` to `String createdBy`
+   - Returns typed `LoaDownloadResponseDTO` to controller
+
+8. Error Handling:
+   - `FeignClientConfig.errorDecoder()` handles errors
+   - 401 Unauthorized: Clears cached token, logs error
+   - 403 Forbidden: Clears cached token, logs error
+   - 404 Not Found: Request ID not found, returns 404 with error details
+   - Other errors: Uses default error decoder
+
+CLASSES AND METHODS INVOLVED:
+- `MedicardApiClient` - Feign client interface
+- `FeignClientConfig` - Feign configuration with interceptors
+- `TokenService` - Token management service
+- `LoaDownloadResponseDTO` - Response DTO class
+- `RequestInterceptor` - Feign request interceptor
+- `ErrorDecoder` - Feign error decoder
+- Jackson `ObjectMapper` - JSON deserialization
+
+OUTPUT: Detailed explanation of Feign client execution, automatic token injection, typed response handling, and error handling.
+
+---
+
+9.3 Response DTO Layer - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining response DTO structure and deserialization.
+
+TASK: Explain in detail what happens with the `LoaDownloadResponseDTO` class and its nested structure.
+
+CONTEXT:
+- DTO class: `LoaDownloadResponseDTO`
+- Package: `com.medgo.loaservice.domain.dto.response`
+- Type: Lombok `@Data` class
+- Contains nested `Data` class for file information
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Main DTO Class Definition:
+   - `@Data` annotation generates:
+     - Getters and setters for all fields
+     - `equals()` and `hashCode()` methods
+     - `toString()` method
+   - `@JsonIgnoreProperties(ignoreUnknown = true)`:
+     - Ignores unknown JSON properties during deserialization
+     - Prevents errors if Medicard API adds new fields
+
+2. Field - statusCode:
+   - Type: `String`
+   - Purpose: HTTP status code from Medicard API (e.g., "200", "404")
+   - Example: `"200"`
+
+3. Field - statusName:
+   - Type: `String`
+   - Purpose: Status name from Medicard API (e.g., "SUCCESS", "ERROR")
+   - Example: `"SUCCESS"`
+
+4. Field - data:
+   - Type: Nested `Data` class
+   - Purpose: Contains file information and base64-encoded PDF
+   - Can be `null` if no data returned
+
+5. Nested Data Class:
+   - `@Data` annotation generates getters/setters
+   - `@JsonIgnoreProperties(ignoreUnknown = true)` for unknown properties
+   - Fields:
+     - `createdOn`: `String` - Creation timestamp
+     - `createdBy`: `String` - Creator information
+     - `fileName`: `String` - PDF file name
+     - `fileBase64`: `String` - Base64-encoded PDF content (annotated with `@JsonProperty("fileBase64")`)
+
+6. Field - fileBase64:
+   - Type: `String`
+   - Annotation: `@JsonProperty("fileBase64")`
+   - Purpose: Base64-encoded PDF file content
+   - Format: Base64 string (can be very long, contains entire PDF)
+   - Example: `"JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoK..."`
+
+7. JSON Deserialization:
+   - Jackson deserializes JSON response from Medicard API
+   - JSON structure:
+     ```json
+     {
+       "statusCode": "200",
+       "statusName": "SUCCESS",
+       "data": {
+         "fileBase64": "...",
+         "fileName": "LOA_21909.pdf",
+         "createdOn": "2025-01-15T10:30:00",
+         "createdBy": "System"
+       }
+     }
+     ```
+   - Maps to: `new LoaDownloadResponseDTO(data, "200", "SUCCESS")`
+   - Nested `data` maps to: `new Data("2025-01-15T10:30:00", "System", "LOA_21909.pdf", "...")`
+
+8. Response Wrapping:
+   - Controller wraps in: `CommonResponse.success(response)`
+   - Final response format:
+     ```json
+     {
+       "statusCode": "200",
+       "response": "SUCCESS",
+       "data": {
+         "statusCode": "200",
+         "statusName": "SUCCESS",
+         "data": {
+           "fileBase64": "...",
+           "fileName": "LOA_21909.pdf",
+           "createdOn": "2025-01-15T10:30:00",
+           "createdBy": "System"
+         }
+       }
+     }
+     ```
+
+9. Client Usage:
+   - Client receives response
+   - Extracts `data.fileBase64` field
+   - Decodes Base64 to binary PDF
+   - Saves or displays PDF file
+   - Uses `fileName` for suggested file name
+
+CLASSES AND METHODS INVOLVED:
+- `LoaDownloadResponseDTO` - Main response DTO
+- `LoaDownloadResponseDTO.Data` - Nested data DTO
+- `@Data` - Lombok annotation
+- `@JsonIgnoreProperties` - Jackson annotation
+- `@JsonProperty` - Jackson annotation
+- Jackson `ObjectMapper` - JSON deserialization
+- `CommonResponse` - Response wrapper
+
+OUTPUT: Detailed explanation of response DTO structure, nested class design, JSON deserialization, and client usage.
+
+---
+
+9.4 Request Parameters - Detailed Explanation Prompt
+
+ROLE: You are a backend developer explaining request parameter validation and handling.
+
+TASK: Explain in detail what happens with the request parameters for the LOA download endpoint.
+
+CONTEXT:
+- Endpoint: `GET /download/loa`
+- Parameters: Query parameters (not request body)
+- Validation: Bean Validation annotations and custom enum validation
+
+WHAT HAPPENS IN THIS LAYER:
+
+1. Parameter Extraction:
+   - Spring extracts parameters from query string
+   - Example URL: `/download/loa?systemOrigin=MCAP&requestId=21909&originMemberCode=2621761`
+
+2. Parameter - systemOrigin:
+   - Annotation: `@RequestParam("systemOrigin")`
+   - Type: `String`
+   - Required: Yes (no `required = false`)
+   - Purpose: System origin identifier
+   - Valid values: "MCAP" or "MACE"
+   - Validation: Custom validation via `SystemOriginEnum.fromCode()`
+   - If invalid: Returns HTTP 400 Bad Request
+
+3. Parameter - requestId:
+   - Annotation: `@RequestParam("requestId")`
+   - Type: `Long`
+   - Required: Yes (no `required = false`)
+   - Purpose: LOA request ID to download
+   - Validation: Spring automatically converts string to Long
+   - If invalid format: Returns HTTP 400 Bad Request (type conversion error)
+
+4. Parameter - originMemberCode:
+   - Annotation: `@RequestParam("originMemberCode")`
+   - Validation: `@Size(max = 50, message = "originMemberCode must not exceed 50 characters")`
+   - Type: `String`
+   - Required: Yes (no `required = false`)
+   - Purpose: Member code for the request
+   - Validation: Maximum length 50 characters
+
+5. Validation Execution Order:
+   - Parameter extraction (Spring automatic)
+   - Type conversion (Spring automatic - String to Long for requestId)
+   - `originMemberCode` size validation (Bean Validation)
+   - `systemOrigin` enum validation (Custom validation)
+   - If any validation fails: Returns error, method not executed
+
+6. Parameter Passing to Feign Client:
+   - All three parameters passed to: `medicardApiClient.downloadLoa(systemOrigin, requestId, originMemberCode)`
+   - Feign client converts to query parameters
+   - URL: `GET /mcap/mace-medgo/form/loa/v2?systemOrigin=MCAP&requestId=21909&originMemberCode=2621761`
+
+CLASSES AND METHODS INVOLVED:
+- `@RequestParam` - Spring annotation for query parameters
+- `@Size` - Bean Validation annotation
+- `SystemOriginEnum` - Enum for system origin validation
+- Spring parameter extraction and type conversion framework
+
+OUTPUT: Detailed explanation of request parameter extraction, validation rules, type conversion, and parameter passing.
+
+---
+
+**OUTPUT:** Complete explanation of LOA download API including controller, Feign client, response DTO, and request parameter handling layers.
+

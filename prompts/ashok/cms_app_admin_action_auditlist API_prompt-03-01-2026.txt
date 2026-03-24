@@ -1,0 +1,84 @@
+/admin-action-audit/list API -03-01-2026-->create api based on this prompt
+
+AI Prompt Template – Controller Layer (POST-only)
+
+TASK:
+Generate a detailed controller-layer prompt for the `/admin-action-audit/list` endpoint following the standardized POST-only API template.
+
+CONTEXT:
+- Controller class: `UserActionLogController`
+- Endpoint: `POST /api/v1/logs/admin-action-audit/list`
+- Request DTO: `UserActionLogListRequest` with fields: `searchQuery`, `adminId`, `fromDate`, `toDate`, `page`, `size`, `actionType`
+- Flow: Controller → Service → Repository. Controller must be thin (no DB or business logic).
+- Response wrapper: `CommonResponse`
+
+REQUIREMENTS:
+- Use POST-only endpoint (`/admin-action-audit/list`).
+- Decrypt request with `@DecryptBody(UserActionLogListRequest.class)`.
+- Validate inputs with `@Valid` and bean validation (`fromDate<=toDate`, `page>=0`, `size<=500`).
+- Enforce admin authorization at controller or security layer (`@PreAuthorize("hasRole('ADMIN')")`).
+- Log `traceId` and non-PII summary: `traceId={} | method=listAdminActionAudits | message={}`.
+- Do not log raw PII; apply masking before logging.
+- Delegate to `userActionLogService.listAdminActionAudits(request)`.
+- Return `CommonResponse`; apply `@EncryptResponse` if configured.
+
+OUTPUT FORMAT:
+- A prompt suitable for AI to generate the controller code snippet and method signature.
+- Include ROLE, TASK, CONTEXT, REQUIREMENTS, METHOD SIGNATURE, and a short example snippet.
+
+METHOD SIGNATURE (reference):
+```java
+@PostMapping("/admin-action-audit/list")
+@EncryptResponse
+@PreAuthorize("hasRole('ADMIN')")
+public CommonResponse listAdminActionAudits(@Valid @DecryptBody(UserActionLogListRequest.class) UserActionLogListRequest request)
+```
+
+SHORT EXAMPLE SNIPPET:
+```java
+String traceId = RequestContext.getTraceId();
+log.info("traceId={} | method=listAdminActionAudits | search={}", traceId, mask(request.getSearchQuery()));
+CommonResponse response = userActionLogService.listAdminActionAudits(request);
+return response;
+```
+
+NOTES:
+- Emphasize sanitization, pagination, and returning `{ total, items }` in `data`.
+- Recommend separate service/DTO/utility prompts following same template.
+
+Layered Prompt Model (All Layers)
+
+1) Controller Layer
+ROLE: Senior Java Spring Boot developer.
+TASK: Generate `UserActionLogController.listAdminActionAudits` POST endpoint.
+OUTPUT: Controller snippet and signature (see above).
+
+2) Service Layer
+ROLE: Service developer.
+TASK: Implement `userActionLogService.listAdminActionAudits(UserActionLogListRequest)`.
+REQUIREMENTS: Build specifications, sanitize PII, return paginated `CommonResponse`.
+OUTPUT: Service skeleton and error mapping.
+
+3) Repository Layer
+ROLE: Persistence engineer.
+TASK: Provide `AuditRepository` with `Page<AuditEntity> findByFilters(...)` or Specification-based query.
+OUTPUT: Repository interface & example Specification.
+
+4) DTO Layer
+ROLE: DTO author.
+TASK: `UserActionLogListRequest` and `AuditItemResponse` record definitions with validation.
+OUTPUT: DTO examples.
+
+5) Utilities
+TASK: `MaskingUtil`, `AuditSanitizer`, and `DateRangeValidator`.
+OUTPUT: Utility signatures.
+
+6) Tests
+TASK: `@WebMvcTest` for controller and unit tests for service mapping and masking.
+OUTPUT: Test skeletons.
+
+7) Docs
+TASK: Add OpenAPI snippet and sample response with masked PII.
+OUTPUT: Markdown and OpenAPI examples.
+
+

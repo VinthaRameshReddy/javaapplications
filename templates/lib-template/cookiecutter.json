@@ -1,0 +1,8 @@
+{
+    "service_name" : "My Library",
+    "service_name_combined" : "{{  cookiecutter.service_name.title().replace(' ', '')  }}",
+    "service_slug": "{{  cookiecutter.service_name | slugify }}",
+    "service_package" :"{{  cookiecutter.service_name | slugify(separator='')  }}",
+    "output_dir" : "",
+    "_extensions": ["cookiecutter.extensions.SlugifyExtension", "cookiecutter.extensions.RandomStringExtension"]
+}

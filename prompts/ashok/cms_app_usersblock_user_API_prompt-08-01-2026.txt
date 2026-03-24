@@ -1,0 +1,81 @@
+-/users/block-user API -08-01-2026-->create api based on this prompt
+AI Prompt Template – Controller Layer (POST-only)
+
+TASK:
+Generate a detailed controller-layer prompt for the `/block-user` endpoint following the standardized POST-only API template.
+
+CONTEXT:
+- Controller class: `UserActionLogController`
+- Endpoint: `POST /api/v1/users/block-user`
+- Request DTO: `BlockUserRequest` with fields: `id`, `reason`, `actionedBy`
+- Flow: Controller → Service → Repository. Controller must be thin.
+- Response wrapper: `CommonResponse`
+
+REQUIREMENTS:
+- Use POST-only endpoint (`/block-user`).
+- Decrypt request using `@DecryptBody(BlockUserRequest.class)`.
+- Validate inputs with `@Valid` (`@NotBlank` for `id`, `@Size` for `reason`).
+- Enforce admin authorization (`@PreAuthorize("hasRole('ADMIN')")`).
+- Log `traceId` and masked identifiers only: `traceId={} | method=blockUser | userId={}`.
+- Do not log `reason` if it contains PII; sanitize before storing in audit.
+- Delegate to `userService.blockUser(request)` and record audit via `auditProducer`.
+- Return `CommonResponse` and apply `@EncryptResponse` if configured.
+
+OUTPUT FORMAT:
+- Controller prompt with method signature and short snippet illustrating trace logging and delegation.
+
+METHOD SIGNATURE (reference):
+```java
+@PostMapping("/block-user")
+@EncryptResponse
+@PreAuthorize("hasRole('ADMIN')")
+public CommonResponse blockUser(@Valid @DecryptBody(BlockUserRequest.class) BlockUserRequest request)
+```
+
+SHORT EXAMPLE SNIPPET:
+```java
+String traceId = RequestContext.getTraceId();
+log.info("traceId={} | method=blockUser | userId={}", traceId, maskId(request.getId()));
+CommonResponse response = userService.blockUser(request);
+return response;
+```
+
+NOTES:
+- Recommend storing `reason` in audit logs with restricted access and validating size/allowed characters.
+
+Layered Prompt Model (All Layers)
+
+1) Controller Layer
+ROLE: Senior Java Spring Boot developer.
+TASK: Generate `UserActionLogController.blockUser` POST endpoint.
+OUTPUT: Controller snippet and signature (see above).
+
+2) Service Layer
+ROLE: Service developer.
+TASK: Implement `userService.blockUser(BlockUserRequest)`.
+REQUIREMENTS: Validate current state, persist block metadata (`blockedBy`, `blockedAt`, `reason`), emit audit event.
+OUTPUT: Service skeleton and transaction boundaries.
+
+3) Repository Layer
+ROLE: Persistence engineer.
+TASK: Provide `UserRepository` update methods and entity mapping for block fields.
+OUTPUT: Repository and entity snippets.
+
+4) DTO Layer
+ROLE: DTO author.
+TASK: `BlockUserRequest` record with validation and `BlockUserResponse`.
+OUTPUT: DTO examples.
+
+5) Utilities
+TASK: `AuditRecorder`, `SanitizeUtil` for reason field.
+OUTPUT: Utility method signatures.
+
+6) Tests
+TASK: Unit tests verifying blocked state transitions and audit emission.
+OUTPUT: Test skeletons.
+
+7) Docs
+TASK: API docs with example request and compliance notes.
+OUTPUT: Markdown sample.
+
+

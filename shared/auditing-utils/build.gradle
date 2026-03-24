@@ -1,0 +1,85 @@
+plugins {
+    id 'org.springframework.boot' version '3.5.5'
+    id 'io.spring.dependency-management' version '1.1.5'
+    id 'java-library'
+    id 'org.sonarqube' version '5.1.0.4882'
+    id 'jacoco'
+}
+
+group = 'com.medgo'
+version = '0.1.0'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+
+    /* ---- Spring Boot Starters ---- */
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    /* ---- Database ---- */
+    implementation 'mysql:mysql-connector-java:8.0.33'
+
+    /* ---- Jackson ---- */
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+
+    /* ---- Commons ---- */
+    implementation 'org.apache.commons:commons-lang3:3.12.0'
+    implementation 'org.json:json:20210307'
+
+    /* ---- JPA API (optional, Hibernate included automatically) ---- */
+    implementation 'jakarta.persistence:jakarta.persistence-api:3.1.0'
+
+    /* ---- Lombok ---- */
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+
+    /* ---- Logging ---- */
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+
+    /* ---- Internal Modules ---- */
+    implementation "com.medgo:common-objects"
+
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+
+
+    /* ---- Test ---- */
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.assertj:assertj-core:3.24.2'
+}
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = true
+    }
+}
+
+test.finalizedBy jacocoTestReport
+
+sonarqube {
+    properties {
+        property 'sonar.exclusions', "com/snapwork/auditingutils/ExceptionHandlerAuditingSupport.java"
+    }
+}
+
+springBoot {
+    buildInfo()
+}

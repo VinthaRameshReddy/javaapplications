@@ -1,0 +1,790 @@
+
+As a MedGo member, I want to download my utilization records within a specified date range so I can review my past medical availments.
+ 
+Api UtilizationReport URL = /utilization/download
+
+Entity
+ 
+Create a Entity class with name UtilizationLegacyEntity 
+
+The class UtilizationLegacyEntity can annotated with @Entity
+@Data, @AllArgsConstructor, @NoArgsConstructor 
+
+Add this stored procedure in the entity class
+
+The class containNamed with @NamedStoredProcedureQueries given below
+
+@NamedStoredProcedureQueries({
+        @NamedStoredProcedureQuery(
+                name = "CP_CLMS_REP_UTILIZATION_ALL_V3_API",  // Name of your stored procedure
+                procedureName = "CP_CLMS_REP_UTILIZATION_ALL_V3_API",
+                resultClasses = {UtilizationLegacyEntity.class}, // Map the result to this entity
+                parameters = {
+                        @StoredProcedureParameter(name = "@DATE_FR", mode = ParameterMode.IN, type = LocalDateTime.class),
+                        @StoredProcedureParameter(name = "@DATE_TO", mode = ParameterMode.IN, type = LocalDateTime.class),
+                        @StoredProcedureParameter(name = "@MEMCODE", mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@LNAME", mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@FNAME", mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@MI", mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@COMP", mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@USER", mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@VAL_DATE", mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@EFF_DATE", mode = ParameterMode.IN, type = String.class)
+                }
+        ),
+        @NamedStoredProcedureQuery(
+                name = "CP_CLMS_REP_UTILIZATION_ALL_V5",
+                procedureName = "CP_CLMS_REP_UTILIZATION_ALL_V5",
+                resultClasses = { UtilizationLegacyEntity.class },
+                parameters = {
+                        @StoredProcedureParameter(name = "@DATE_FR",  mode = ParameterMode.IN, type = LocalDateTime.class),
+                        @StoredProcedureParameter(name = "@DATE_TO",  mode = ParameterMode.IN, type = LocalDateTime.class),
+                        @StoredProcedureParameter(name = "@MEMCODE",  mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@LNAME",    mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@FNAME",    mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@MI",       mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@COMP",     mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@USER",     mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@VAL_DATE", mode = ParameterMode.IN, type = String.class),
+                        @StoredProcedureParameter(name = "@EFF_DATE", mode = ParameterMode.IN, type = String.class)
+                }
+        )
+})
+
+and entity with this fields also
+
+Create a class named UtilizationLegacyEntity mapped to the UTILIZATION_LEGACY table.
+
+Annotate the class with @Entity and @Table(name = "UTILIZATION_LEGACY")
+
+Include Lombok annotations @Data, @AllArgsConstructor, @NoArgsConstructor, and @Builder for boilerplate reduction.
+
+The class should use an embedded ID:
+
+id of type UtilizationLegacyId, annotated with @EmbeddedId.
+
+
+Include the following fields with appropriate JPA annotations:
+
+availFr of type LocalDateTime, annotated with @Column(name = "AVAIL_FR").
+
+availTo of type LocalDateTime, annotated with @Column(name = "AVAIL_TO").
+
+diagDesc of type String, annotated with @Column(name = "DIAG_DESC").
+
+dxRem of type String, annotated with @Column(name = "DX_REM").
+
+hospitalName of type String, annotated with @Column(name = "HOSPITAL_NAME").
+
+doctorName of type String.
+
+approved of type Double, annotated with @Column(name = "APPROVED").
+
+disapproved of type Double, annotated with @Column(name = "DISAPPROVED").
+
+advances of type Double, annotated with @Column(name = "ADVANCES").
+
+erc of type Double, annotated with @Column(name = "ERC").
+
+memcode of type String, annotated with @Column(name = "MEMCODE").
+
+patient of type String, annotated with @Column(name = "PATIENT").
+
+company of type String, annotated with @Column(name = "COMPANY").
+
+periodFr of type LocalDateTime, annotated with @Column(name = "PERIOD_FR").
+
+periodTo of type LocalDateTime, annotated with @Column(name = "PERIOD_TO").
+
+printedBy of type String, annotated with @Column(name = "PRINTED_BY").
+
+billcode of type String, annotated with @Column(name = "BILLCODE").
+
+medicareIncentives of type Double, annotated with @Column(name = "MEDICARE_INCENTIVES").
+
+reimReason of type String, annotated with @Column(name = "REIM_REASON").
+
+updatedBy of type String, annotated with @Column(name = "UPDATED_BY").
+
+valid of type String, annotated with @Column(name = "valid").
+
+effective of type String, annotated with @Column(name = "Effective").
+
+hospSoa of type String, annotated with @Column(name = "HOSP_SOA").
+
+icd10code of type String, annotated with @Column(name = "ICD10_CODE").
+
+icd10desc of type String, annotated with @Column(name = "ICD10_DESC").
+
+remarks2 of type String, annotated with @Column(name = "REMARKS2").
+
+checknum of type String, annotated with @Column(name = "CHECKNUM").
+
+pf of type String, annotated with @Column(name = "PF").
+
+rcvdBy of type String, annotated with @Column(name = "RCVD_BY").
+
+rcvdDate of type LocalDateTime, annotated with @Column(name = "RCVD_DATE").
+
+depname of type String.
+
+depcode of type String.
+
+Include a custom setter method:
+
+public void setId(UtilizationLegacyId utilizationLegacyId) {
+}
+
+
+Use jakarta.persistence.* for JPA annotations and java.time.LocalDateTime for date fields.
+
+Place the class inside the package com.medgo.member.domain.entity.utilization.
+
+
+
+Entity 
+
+Create a class named UtilizationLegacyId marked with @Embeddable.
+
+The class should implement Serializable.
+
+Annotate the class with @Embeddable.
+
+Place the class inside the package com.medgo.member.domain.entity.utilization.
+
+Include the following fields with appropriate JPA annotations:
+
+controlCode of type String, annotated with @Column(name = "CONTROL_CODE", nullable = false, length = 50").
+
+updatedDate of type LocalDateTime, annotated with @Column(name = "UPDATED_DATE", nullable = false).
+
+Include the following constructors:
+
+A no-args constructor.
+
+An all-args constructor accepting all fields.
+
+Include getter and setter methods for all fields, including:
+
+public String getControlCode() { return controlCode; }
+public void setControlCode(String controlCode) { this.controlCode = controlCode; }
+
+public LocalDateTime getUpdatedDate() { return updatedDate; }
+public void setUpdatedDate(LocalDateTime updatedDate) { this.updatedDate = updatedDate; }
+
+
+Override equals() and hashCode() methods using both fields (controlCode and updatedDate) in the comparison.
+
+Use Objects.equals() for equality comparison and Objects.hash() for generating the hash code.
+
+Import jakarta.persistence.*, java.io.Serializable, java.time.LocalDateTime, and java.util.Objects.
+
+
+
+Repositorys
+
+Create Repository 
+==========================
+
+Create a repository interface named UtilizationLegacyRepository.
+
+Annotate the interface with @Repository.
+
+The interface should extend the following:
+
+JpaRepository<UtilizationLegacyEntity, UtilizationLegacyId>
+
+UtilizationLegacyRepositoryCustom
+
+Use the following imports:
+
+org.springframework.stereotype.Repository
+
+org.springframework.data.jpa.repository.JpaRepository
+
+com.medgo.member.domain.entity.utilization.UtilizationLegacyEntity
+
+com.medgo.member.domain.entity.utilization.UtilizationLegacyId
+
+com.medgo.member.repository.utilization.UtilizationLegacyRepositoryCustom
+
+Place the interface inside the package com.medgo.member.repository.utilization.
+
+
+Repository
+
+create Interface with name UtilizationLegacyRepositoryCustom
+=====================
+Interface should be empty (no additional methods needed for now).
+
+
+create Repository with name UtilizationLegacyRepositoryCustom
+
+Add this method in Repository interface 
+
+List<UtilizationResponse> findUtilizationDataV6(UtilizationRequest request) – accepts a UtilizationRequest object and returns a list of UtilizationResponse.
+
+The interface should be empty except for the method declaration
+
+
+RepositoryInterface implementation class
+
+Create a Spring Data JPA custom repository implementation class named UtilizationLegacyRepositoryCustomImpl in the package com.medgo.member.repository.utilization.
+
+Class Requirements:
+
+Implement a custom repository interface UtilizationLegacyRepositoryCustom.
+
+Annotate the class with @Repository if needed (optional for JPA custom implementations).
+
+Inject an EntityManager using @PersistenceContext.
+
+Provide a method to call a stored procedure and map results to DTOs.
+
+Method to Implement:
+
+findUtilizationDataV6(UtilizationRequest request)
+
+Input: UtilizationRequest object.
+
+Return type: List<UtilizationResponse>.
+
+Use StoredProcedureQuery to call stored procedure "CP_CLMS_REP_UTILIZATION_ALL_V6".
+
+Register stored procedure parameters with proper types (LocalDateTime, String).
+
+Set parameter values from UtilizationRequest, handling nulls for optional fields.
+
+Execute the stored procedure and retrieve results as List<Object[]>.
+
+Map each row to UtilizationResponse using UtilizationMapper.convertToLocalDate() and UtilizationMapper.convertToLocalDateTime() for date fields, and proper conversion for numeric and string fields.
+
+Return the list of UtilizationResponse.
+
+Include debugging/logging of stored procedure name and parameters.
+
+
+
+Helper Method:
+
+private void setQueryParameters(StoredProcedureQuery query, UtilizationRequest request)
+
+Sets stored procedure parameters safely, defaulting null string fields to empty strings.
+
+private LocalDateTime convertToLocalDateTime(Object dateObject)
+
+Converts Timestamp or Date to LocalDateTime.
+
+Throws IllegalArgumentException for unsupported types.
+
+Include debug printing for procedure name and parameters
+
+
+Request Class
+
+create request binding and validation Class with Name  UtilizationRequest
+
+
+Use Lombok annotations
+Include the following fields with types, JSON property names, and validation annotations:
+
+LocalDateTime dateFr → @JsonProperty("dateFr"), @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss"), @NotNull
+
+LocalDateTime dateTo → @JsonProperty("dateTo"), @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss"), @NotNull
+
+String memcode → @JsonProperty("memcode"), @NotBlank
+
+String lname → @NotBlank
+
+String fname → @NotBlank
+
+String mi → optional, no validation
+
+String comp → @NotBlank
+
+String user → @NotBlank
+
+LocalDateTime valDate → @JsonProperty("valDate"), @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss"), @NotNull
+
+LocalDateTime effDate → @JsonProperty("effDate"), @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss"), @NotNull
+
+String periodType → @JsonProperty("periodType"), @NotBlank
+
+Include pagination fields: Integer page = 0, Integer size = 10
+
+Use proper imports from jakarta.validation.constraints and com.fasterxml.jackson.annotation
+
+
+===================================================================================================================
+Response class
+
+
+Create a response class named CommonResponse in the package com.medgo.commons.
+
+Use Lombok annotations:
+
+@Data
+
+@NoArgsConstructor
+
+@AllArgsConstructor
+
+Use Jackson annotations:
+
+@JsonInclude(JsonInclude.Include.NON_NULL) at the class level
+
+@JsonProperty on all fields
+
+Include the following fields:
+
+statusCode of type String
+
+response of type String
+
+data of type Object
+
+traceId of type String, with a default value from RequestContext.getTraceId()
+
+Include the following static helper methods:
+
+success(Object data) – returns a CommonResponse with:
+
+statusCode = "000"
+
+response = "SUCCESS"
+
+If data is a String, wrap it in a map with key "message".
+
+successWithMemberCode(String memberCode, String message) – returns a success response with a MemberData object containing memberCode and message.
+
+error(ErrorResponse error, int statusCode) – returns an error response with:
+
+statusCode = "001"
+
+response = "ERROR"
+
+data containing the error object.
+
+Include a method:
+
+@JsonIgnore
+public boolean isSuccess() {
+    return "000".equals(this.statusCode);
+}
+
+
+
+==============================================================================================
+
+Pojo class PdfResponse
+
+Create a response DTO class named PdfResponse in the package com.medgo.member.domain.response.
+
+Class Requirements:
+
+Annotate the class with Lombok @Data to generate getters, setters, toString(), equals(), and hashCode().
+
+Include two fields:
+
+base64File of type String → holds the Base64-encoded PDF content.
+
+fileName of type String → holds the filename of the PDF.
+
+Provide an all-args constructor that accepts base64File and fileName.
+
+Include explicit getters and setters for both fields, even though Lombok @Data will generate them.
+
+Ensure the class is a simple POJO ready for JSON serialization and use as a response object.
+
+
+pojo class UtilizationResponse 
+
+Create a response DTO class named UtilizationResponse in the package com.medgo.member.domain.response.
+
+Class Requirements:
+
+Annotate the class with Lombok @Data to generate getters, setters, toString(), equals(), and hashCode().
+
+Include a JPA @Id annotation on the controlCode field.
+
+Include the following fields with their types:
+
+controlCode → String
+
+availFr → LocalDate
+
+availTo → LocalDate
+
+diagDesc → String
+
+dxRem → String
+
+hospitalName → String
+
+doctorName → String
+
+approved → BigDecimal
+
+disapproved → BigDecimal
+
+advances → BigDecimal
+
+erc → BigDecimal
+
+memcode → String
+
+patient → String
+
+company → String
+
+periodFr → LocalDate
+
+periodTo → LocalDate
+
+printedBy → String
+
+billcode → String
+
+medicareIncentives → BigDecimal
+
+reimReason → String
+
+updatedBy → String
+
+updatedDate → LocalDateTime
+
+valid → LocalDate
+
+effective → LocalDate
+
+hospSoa → String
+
+icd10Code → String
+
+icd10Desc → String
+
+remarks2 → String
+
+checknum → String
+
+pf → String
+
+rcvdBy → String
+
+rcvdDate → LocalDate
+
+depname → String
+
+depcode → String
+
+Include explicit getters and setters for company and patient fields.
+
+
+UtilizationLegacyResponse class
+
+Create a response DTO class named UtilizationLegacyResponse in the package com.medgo.member.domain.response.
+
+Class Requirements:
+
+Annotate the class with Lombok @Data to generate getters, setters, toString(), equals(), and hashCode().
+
+Annotate the class with Lombok @NoArgsConstructor for a default constructor.
+
+Annotate the class with Lombok @AllArgsConstructor for an all-args constructor.
+
+Include the following fields:
+
+status → int → to hold the response status code.
+
+message → String → to hold the response message.
+
+list → List<UtilizationResponse> → to hold a list of utilization records.
+
+
+
+
+
+interface
+============
+
+Create a service interface named UtilizationService in the package com.medgo.member.service.
+
+The interface should declare one method:
+
+CommonResponse getUtilizationPdf(UtilizationRequest utilizationRequest);
+
+
+The method should:
+
+Take a UtilizationRequest object as input.
+
+Return a CommonResponse object.
+
+
+
+service class UtilizationImpl
+=============================================================================================
+Create a service Class with name UtilizationImpl 
+
+and annotated with @service annotation
+
+This is my Service logic 
+
+Create a Spring Boot service method in Java for generating a PDF from utilization data.
+
+Method Requirements:
+
+Method name: getUtilizationPdf
+
+Input parameter: UtilizationRequest utilizationRequest
+
+Return type: CommonResponse
+
+Annotate the method with @Transactional(isolation = Isolation.READ_UNCOMMITTED)
+
+Place this method inside the service implementation class UtilizationImpl in the package com.medgo.member.service.impl.
+
+The method should:
+
+Validate the request period using a helper method handlePeriodType(utilizationRequest).
+
+If invalid, return CommonResponse.error(...).
+
+Call the repository method findUtilizationDataV6(utilizationRequest) to fetch a list of UtilizationResponse.
+
+If the list is null or empty, return CommonResponse.error(...).
+
+Post-process the list using postProcess(List<UtilizationResponse>). it is for control code generation
+
+Generate PDF bytes using generatePdf(List<UtilizationResponse>).
+
+Convert the PDF bytes to Base64 and wrap them inside a PdfResponse object.
+
+Generate a PDF filename using generatePdfFileName(utilizationRequest, list).
+
+Return CommonResponse.success(response) if PDF generation succeeds.
+
+Catch IOException and return an error CommonResponse.
+
+PDF Generation (generatePdf method):
+
+Use iText 7 (version 7.1.17) dependency in the build.gradle file:
+
+implementation 'com.itextpdf:itext7-core:7.1.17'
+
+
+Use classes: PdfDocument, Document, Table, Paragraph, etc.
+
+Include a disclaimer section at the end of the PDF.
+
+Properly format dates and numeric fields.
+
+Create header and data tables with proper alignment, border, and font sizes.
+
+Calculate and display totals for numeric fields.
+
+Add page numbering in the footer using a custom IEventHandler.
+
+Include helper methods for cell creation and formatting:
+
+private Cell createCell(String text, float fontSize, boolean bold, TextAlignment alignment);
+private Cell createHeaderCell(String text, float fontSize, TextAlignment alignment);
+private Cell createValueCell(String text, float fontSize);
+private String generatePdfFileName(UtilizationRequest request, List<UtilizationResponse> dataList);
+private List<UtilizationResponse> postProcess(List<UtilizationResponse> dataList);
+
+
+Use Optional to handle nullable values.
+
+Use Java 8+ Date/Time API (LocalDateTime, DateTimeFormatter, ChronoUnit).
+
+Add proper logging with LOGGER.info() for debugging steps.
+
+Helper Method:
+
+Create a private method named handlePeriodType that takes a UtilizationRequest object as input and returns a CommonResponse object.
+
+The method should:
+
+Validate if periodType is null or blank — if true, return:
+
+return CommonResponse.error(new ErrorResponse(400, MemberConstants.PERIODTYPE), 400);
+
+
+Define LocalDateTime now = LocalDateTime.now();
+
+Use a switch expression (switch (utilizationRequest.getPeriodType().toLowerCase())) to handle the following cases:
+
+"last12months" → set dateFr = now.minusYears(1) and dateTo = now.
+
+"2years" → set dateFr = now.minusYears(2) and dateTo = now.
+
+"3years" → set dateFr = now.minusYears(3) and dateTo = now.
+
+"4years" → set dateFr = now.minusYears(4) and dateTo = now.
+
+"5years" → set dateFr = now.minusYears(5) and dateTo = now.
+
+"custom" →
+
+If either dateFr or dateTo is null, return:
+
+return CommonResponse.error(new ErrorResponse(400, MemberConstants.CUSTOM), 400);
+
+
+Calculate:
+
+long yearsBetween = ChronoUnit.YEARS.between(utilizationRequest.getDateFr(), utilizationRequest.getDateTo());
+if (yearsBetween > 5) {
+    return CommonResponse.error(new ErrorResponse(400, MemberConstants.YEARS_BETWEEN), 400);
+}
+
+
+default case → return:
+
+return CommonResponse.error(new ErrorResponse(400, MemberConstants.INVALID_PERIOD), 400);
+
+
+If no error occurs, return null.
+
+
+Create a utility mapper class named UtilizationMapper in the package com.medgo.member.mapper.
+
+Class Requirements:
+
+The class should be declared as public final.
+
+Include a private constructor that throws UnsupportedOperationException to prevent instantiation.
+
+The class should provide static mapping methods between database query results or entity objects and DTOs (UtilizationResponse).
+
+Include proper logging or error handling where necessary.
+
+Methods to Implement:
+
+mapToUtilizationResponse(Object[] row)
+
+Maps an array of objects (from JDBC/Native query) to a UtilizationResponse.
+
+Convert each column to the corresponding field in UtilizationResponse.
+
+Handle the following types:
+
+String → getString(Object)
+
+BigDecimal → toBigDecimal(Object)
+
+LocalDate → convertToLocalDate(Object)
+
+LocalDateTime → convertToLocalDateTime(Object)
+
+Include proper exception handling and throw RuntimeException if mapping fails.
+
+toDto(UtilizationLegacyEntity entity)
+
+Maps a UtilizationLegacyEntity object to UtilizationResponse.
+
+Convert all fields, handling null values and defaulting numeric fields to 0.
+
+Use Java 8+ date/time API for conversions (LocalDateTime → LocalDate).
+
+Helper Methods:
+
+private static String getString(Object value) → safely convert Object to String.
+
+private static BigDecimal toBigDecimal(Object value) → safely convert Object to BigDecimal.
+
+public static LocalDate convertToLocalDate(Object value) → convert Object to LocalDate, supporting String, Timestamp, and multiple date formats.
+
+public static LocalDateTime convertToLocalDateTime(Object value) → convert Object to LocalDateTime, supporting String and Timestamp.
+
+private static int getErrorIndex(Exception e) → optional helper to extract index from DateTimeParseException.
+
+Date Handling:
+
+Use an array of DateTimeFormatter[] DATE_FORMATTERS to support multiple date formats:
+
+ISO_LOCAL_DATE_TIME
+
+ISO_LOCAL_DATE
+
+"yyyy-MM-dd HH:mm:ss"
+
+"MM/dd/yyyy"
+
+Skip invalid or empty date strings.
+
+
+Create a Spring Boot REST controller class named UtilizationController.
+==========================================================================
+
+Place the class in the package com.medgo.member.controller.utilization.
+
+Annotate the class with @RestController and @RequestMapping("/utilization").
+
+Inject the service UtilizationService using constructor-based injection.
+
+Use proper logging with @Slf4j for request tracking.
+
+HTTP Mapping:
+
+Create a method annotated with @PostMapping("/download").
+
+Request Handling:
+
+The method should:
+
+Accept a request body of type UtilizationRequest, annotated with @DecryptBody(UtilizationRequest.class).
+
+Return a CommonResponse object.
+
+Be annotated with @EncryptResponse to ensure encrypted response handling.
+
+
+
+
+
+
+Create a public Java class named MemberConstants.
+========================================================
+The class should be placed in the package com.medgo.member.constants.
+
+The class should contain only public static final String fields (constants).
+
+No constructors or methods should be included.
+
+This class will serve as a constants holder for messages used in the Utilization module.
+with the fields in the class
+
+INVALID_PERIOD = "Invalid periodType: "
+
+PERIODTYPE = "Please Select Period "
+
+YEARS_BETWEEN = "Selected date range cannot exceed 5 years "
+
+CUSTOM = "For custom , FromDate and ToDate must be provided"
+
+RECORDS = "No records found for the selected period."
+
+GENEREATINGPDF = " Error Generating PDF:"
+
+DISCLAIMER = "This utilization report does not include availments that were not called in for approval and"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,43 @@
+version: '3.8'
+networks:
+  com.medgo.claimsnwk:
+    name: app
+    driver: bridge
+volumes:
+  postgres_data:
+    driver: local
+services:
+  claims-service:
+    image: com.medgo/reimburse-service:0.1.0
+    container_name: reimburse-service
+    ports:
+      - "10087:10087"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/claimsservicedb
+      SPRING_DATASOURCE_PASSWORD: LzjGZRZTDkPZ
+    networks:
+      - com.medgo.claimsnwk
+    depends_on:
+      - db
+    
+  db:
+    image: postgres:12.6
+    container_name: com.medgo.claimsdb
+    restart: always
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - com.medgo.claimsnwk
+    ports:
+      - "19604:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: LzjGZRZTDkPZ
+      POSTGRES_DB: claimsservicedb
+      PGDATA: /var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 1m
+      timeout: 10s
+      retries: 2
+  

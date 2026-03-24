@@ -1,0 +1,55 @@
+Title: Claims-service response codes and status mapping
+Date: 2026-02-05
+
+Goal
+Collect success and failure response bodies with HTTP status codes for claims-service
+endpoints, and document where each response is generated in the code.
+
+Scope
+- Service: claims-service
+- Base context path: /claims-service
+- Controllers: ReimbursementProxyController
+- Exception handling: claims-service GlobalExceptionHandler
+- Security: SecurityConfig authenticationEntryPoint
+- Shared response model: CommonResponse and ErrorResponse
+
+Search details
+1) Controllers and endpoints
+   - File: services/claims-service/src/main/java/com/medgo/claims/controller/ReimbursementProxyController.java
+   - Endpoints:
+     * GET /api/v1/reimbursement/history
+     * POST /api/v1/reimbursement/claimNature
+     * POST /api/v1/reimbursement/bankMaster
+     * POST /api/v1/reimbursement/viewAmountBreakDown
+     * POST /api/v1/reimbursement/submit
+     * POST /api/v1/reimbursement/resubmit
+
+2) Exception handling (error responses with HTTP status codes)
+   - File: services/claims-service/src/main/java/com/medgo/claims/exception/GlobalExceptionHandler.java
+   - Mappings:
+     * FeignException.NotFound -> 404
+     * FeignException (non-404) -> downstream status
+     * MemberCodeValidationException -> 403
+     * JsonProcessingException -> 400
+     * IllegalArgumentException -> 400
+     * RuntimeException -> 500
+     * Exception -> 500
+
+3) Security unauthorized response
+   - File: services/claims-service/src/main/java/com/medgo/claims/config/SecurityConfig.java
+   - authenticationEntryPoint -> 401 with JSON body:
+     {"error":"Unauthorized: Valid JWT token required. Please login first."}
+
+4) Common response model used for success/error payloads
+   - File: shared/common-objects/src/main/java/com/medgo/commons/CommonResponse.java
+   - File: shared/common-objects/src/main/java/com/medgo/commons/ErrorResponse.java
+   - Success example:
+     {"statusCode":"200","response":"SUCCESS","data":{...},"traceId":"<traceId>"}
+   - Error example:
+     {"statusCode":"<status>","response":"ERROR","data":{"statusCode":<status>,"errorCode":null,"message":"...","errors":[]},"traceId":"<traceId>"}
+
+Output created
+- Excel sheet with all endpoints and responses:
+  services/claims-service/docs/claims-service-response-codes.xlsx
+- Updated version (added Service Name column for all rows):
+  services/claims-service/docs/claims-service-response-codes-updated.xlsx

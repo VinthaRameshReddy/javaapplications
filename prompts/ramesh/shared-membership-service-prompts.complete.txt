@@ -1,0 +1,22 @@
+Service group: shared-membership-service
+Original file: shared-membership-service-prompts.txt
+
+Scope:
+Create per-endpoint, full-service regeneration prompts for `shared-membership-service`.
+
+Instructions:
+1. For each controller in `services/shared-membership-service/src/main/java/**/controller`, produce a standalone prompt that:
+   - Identifies endpoint method signatures and DTOs.
+   - Extracts or infers DTO/entity fields and provides JSON schema examples.
+   - Specifies behavior, validation, security, and expected error responses.
+   - Requests a git-style patch that regenerates the entire service (source, tests, resources, configs).
+2. Maintain package names, annotations, and external contracts. Flag breaking changes explicitly.
+
+Non-functional requirements:
+- Java 17, Spring Boot 3.x
+- Unit and integration tests
+
+Output:
+- One prompt file per endpoint under `prompts/ramesh/` named `ramesh-<service>-<controller>-<endpoint>.complete.md`.
+
+Regenerate now.

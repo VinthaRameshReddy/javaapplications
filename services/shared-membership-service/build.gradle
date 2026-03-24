@@ -1,0 +1,141 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.5'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'com.palantir.docker' version '0.36.0'
+    id 'jacoco'
+    id 'com.gorylenko.gradle-git-properties' version '2.3.2'
+    id 'org.sonarqube' version '5.1.0.4882'
+}
+
+group = 'com.medgo'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Shared libraries
+    implementation 'com.medgo:common-objects:0.1.0'
+    implementation 'com.medgo:logging-utils:0.1.0'
+
+    // Spring Boot Starters
+    implementation('org.springframework.boot:spring-boot-starter-web:3.5.5') {
+        exclude group: "commons-logging", module: "commons-logging"
+    }
+    implementation 'org.springframework.boot:spring-boot-starter-actuator:3.5.5'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa:3.5.5'
+    implementation 'org.springframework.boot:spring-boot-starter-validation:3.5.5'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign:4.3.0'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:3.5.5'
+
+    // Retrofit
+    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
+    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
+
+    // Context
+    implementation 'org.springframework:spring-context'
+
+    // Micrometer
+    implementation 'io.micrometer:micrometer-core:1.12.0'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus:1.9.3'
+
+    // Database
+    implementation 'com.microsoft.sqlserver:mssql-jdbc:12.6.1.jre11'
+
+    // Logging
+    implementation 'net.logstash.logback:logstash-logback-encoder:7.0.1'
+    implementation 'org.slf4j:slf4j-api:2.0.13'
+
+    // MapStruct
+    implementation 'org.mapstruct:mapstruct:1.5.5.Final'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok:1.18.32'
+    annotationProcessor 'org.projectlombok:lombok:1.18.32'
+    testCompileOnly 'org.projectlombok:lombok:1.18.32'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.32'
+
+    // OpenAPI UI
+    implementation 'org.springdoc:springdoc-openapi-ui:1.6.5'
+
+    // PDF generation
+    implementation 'com.itextpdf:layout:7.1.17'
+
+    // Azure
+    implementation 'com.azure.spring:spring-cloud-azure-starter-keyvault-secrets:6.0.0'
+    implementation 'com.azure:azure-storage-blob:12.19.1'
+
+    // Testing
+    testImplementation 'com.h2database:h2:2.2.224'
+    testImplementation 'org.springframework.security:spring-security-test:5.7.12'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+    testImplementation 'org.mockito:mockito-core:5.12.0'
+}
+
+jacocoTestReport {
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+        xml.outputLocation.set(file("${buildDir}/reports/jacoco/test/jacocoTestReport.xml"))
+        html.outputLocation.set(file("${buildDir}/reports/jacoco/html"))
+    }
+}
+
+test.finalizedBy jacocoTestReport
+
+test {
+    useJUnitPlatform()
+    testLogging {
+        events("passed", "failed", "skipped")
+    }
+    ignoreFailures = true
+}
+
+docker {
+    dependsOn bootJar
+    name "${project.group}/${jar.archiveBaseName.get()}:${version}"
+    copySpec.from("build/libs").into("libs")
+    dockerfile file('src/main/resources/docker/Dockerfile')
+}
+
+tasks.withType(Checkstyle) {
+    configFile file('codequality/checkstyle.xml')
+    ignoreFailures = true
+}
+
+gitProperties {
+    dateFormat = "yyyy-MM-dd'T'HH:mmZ"
+    dateFormatTimeZone = "IST"
+}
+
+springBoot {
+    buildInfo()
+}
+
+sonarqube {
+    properties {
+        property "sonar.projectKey", "com.medgo:shared-member-service"
+        property "sonar.projectName", "shared Member Service"
+        property "sonar.host.url", "http://localhost:9000"
+        property "sonar.token", "sqa_d619b9b4111e16847d1ec61e98cfb13cd81de0cc"
+        property "sonar.java.coveragePlugin", "jacoco"
+        property "sonar.coverage.jacoco.xmlReportPaths", "${buildDir}/reports/jacoco/test/jacocoTestReport.xml"
+        property "sonar.sources", "src/main/java"
+        property "sonar.tests", "src/test/java"
+        property "sonar.java.binaries", "${buildDir}/classes/java/main"
+        property "sonar.coverage.exclusions", "**/config/**,**/dto/**,**/entity/**,**/exception/**"
+        property "sonar.coverage.inclusions", "**/controller/**,**/service/**"
+        property "sonar.test.inclusions", "**/*Test.java"
+    }
+}

@@ -1,0 +1,19 @@
+Service group: provider-service
+Original file: provider-service-prompts.txt
+
+Scope:
+Generate detailed per-endpoint prompts to fully regenerate services under `provider-service`.
+
+Instructions:
+1. For each controller in `services/provider-service/src/main/java/**/controller`:
+   - Produce a standalone prompt describing the endpoint, DTOs (extracted or inferred), validation, caching, and integrations.
+   - Request a git-style patch that regenerates the full service (source, DTOs, repos, tests, configs).
+2. Preserve Feign contracts, header forwarding, and existing package names.
+
+Non-functional:
+- Java 17, Spring Boot 3.x, include unit/integration tests.
+
+Output:
+- Per-endpoint prompt files under `prompts/ramesh/` named `ramesh-provider-<controller>-<endpoint>.complete.md`.
+
+Regenerate now.

@@ -1,0 +1,14 @@
+rootProject.name = 'auth-service'
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files("../../gradle/libs.versions.toml"))
+        }
+    }
+}
+
+
+includeBuild("../../shared/common-objects")
+includeBuild("../../shared/logging-utils")
+includeBuild("../../shared/auditing-utils")
